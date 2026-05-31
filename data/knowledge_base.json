@@ -1,0 +1,201 @@
+[
+  {
+    "id": "faq-scarf-material",
+    "kb_type": "商品FAQ",
+    "shop_id": "shop-demo",
+    "product_id": "sku-scarf",
+    "intent_scope": [
+      "售前咨询"
+    ],
+    "title": "围巾材质说明",
+    "content": "本款围巾主要材质为仿羊绒，触感柔软，适合秋冬日常佩戴。"
+  },
+  {
+    "id": "faq-scarf-size",
+    "kb_type": "商品FAQ",
+    "shop_id": "shop-demo",
+    "product_id": "sku-scarf",
+    "intent_scope": [
+      "售前咨询"
+    ],
+    "title": "围巾尺寸说明",
+    "content": "围巾尺寸约为 190cm x 35cm，手工测量会有少量误差。"
+  },
+  {
+    "id": "faq-price-campaign",
+    "kb_type": "商品FAQ",
+    "shop_id": "shop-demo",
+    "product_id": "sku-scarf",
+    "intent_scope": [
+      "价格咨询"
+    ],
+    "title": "店铺活动说明",
+    "content": "当前店铺以页面展示活动和可领取优惠券为准，是否叠加请以下单页实际展示为准。"
+  },
+  {
+    "id": "logistics-normal-dispatch",
+    "kb_type": "物流规则",
+    "shop_id": "shop-demo",
+    "product_id": "",
+    "intent_scope": [
+      "催发货"
+    ],
+    "title": "现货商品发货时效",
+    "content": "现货订单通常在支付后 48 小时内安排发出，节假日和大促期间可能顺延，请以订单页物流状态为准。"
+  },
+  {
+    "id": "logistics-presale-dispatch",
+    "kb_type": "物流规则",
+    "shop_id": "shop-demo",
+    "product_id": "",
+    "intent_scope": [
+      "催发货"
+    ],
+    "title": "预售商品发货时效",
+    "content": "预售商品发货时间以商品详情页和下单页约定为准，客服不可额外承诺具体到达时间。"
+  },
+  {
+    "id": "aftersale-return-policy",
+    "kb_type": "售后政策",
+    "shop_id": "shop-demo",
+    "product_id": "",
+    "intent_scope": [
+      "售后",
+      "退换货"
+    ],
+    "title": "七天无理由退换说明",
+    "content": "符合平台规则且商品保持完好的订单，可在签收后 7 天内申请退换货，具体以平台审核结果为准。"
+  },
+  {
+    "id": "aftersale-damage-policy",
+    "kb_type": "售后政策",
+    "shop_id": "shop-demo",
+    "product_id": "",
+    "intent_scope": [
+      "售后"
+    ],
+    "title": "破损少件处理说明",
+    "content": "若商品存在破损或少件，请优先通过订单售后入口提交照片凭证，我们会按平台规则协助处理。"
+  },
+  {
+    "id": "aftersale-refund-policy",
+    "kb_type": "售后政策",
+    "shop_id": "shop-demo",
+    "product_id": "",
+    "intent_scope": [
+      "售后",
+      "退换货",
+      "价格咨询"
+    ],
+    "title": "退款与补差说明",
+    "content": "退款、补差和价保需以活动规则、订单状态和平台审核结果为准，客服不可直接承诺赔付或差价返还。"
+  },
+  {
+    "id": "law-return-7days",
+    "kb_type": "售后政策",
+    "shop_id": "shop-demo",
+    "product_id": "",
+    "intent_scope": [
+      "售后",
+      "退换货"
+    ],
+    "title": "七日无理由退货规则",
+    "content": "根据网络购买商品七日无理由退货相关规定，符合条件的商品在签收后可依法申请七日无理由退货，但定制鲜活等依法不适用的商品除外，具体以平台审核和商品实际情况为准。",
+    "source_name": "国家市场监督管理总局",
+    "source_url": "https://www.samr.gov.cn/"
+  },
+  {
+    "id": "law-preserve-goods",
+    "kb_type": "售后政策",
+    "shop_id": "shop-demo",
+    "product_id": "",
+    "intent_scope": [
+      "售后",
+      "退换货"
+    ],
+    "title": "商品完好要求",
+    "content": "消费者申请七日无理由退货时，商品应保持完好。客服回复时应提示用户尽量保持商品及配件完整，并以平台审核结果为准。",
+    "source_name": "国家市场监督管理总局",
+    "source_url": "https://www.samr.gov.cn/"
+  },
+  {
+    "id": "law-no-direct-compensation",
+    "kb_type": "售后政策",
+    "shop_id": "shop-demo",
+    "product_id": "",
+    "intent_scope": [
+      "售后",
+      "价格咨询"
+    ],
+    "title": "赔付与补差需审核",
+    "content": "涉及退款赔付补差时，客服不得直接作出越权承诺，应提示用户以订单状态活动规则和平台审核结果为准。",
+    "source_name": "消费者权益保护通用合规要求",
+    "source_url": "https://www.samr.gov.cn/"
+  },
+  {
+    "id": "logistics-delay-holiday",
+    "kb_type": "物流规则",
+    "shop_id": "shop-demo",
+    "product_id": "",
+    "intent_scope": [
+      "催发货",
+      "价格咨询"
+    ],
+    "title": "节假日物流顺延说明",
+    "content": "节假日及大促期间物流和仓库处理时效可能顺延，客服应说明实际发货与到达时间以订单页和物流轨迹更新为准，不应承诺具体到达时刻。",
+    "source_name": "物流客服常规合规规则",
+    "source_url": "https://www.samr.gov.cn/"
+  },
+  {
+    "id": "logistics-no-promise-arrival",
+    "kb_type": "物流规则",
+    "shop_id": "shop-demo",
+    "product_id": "",
+    "intent_scope": [
+      "催发货"
+    ],
+    "title": "不得承诺具体到达时间",
+    "content": "面对催发货或催物流问题时，客服可说明当前订单或物流节点，但不应承诺明天必到今天必发等确定性时效表述。",
+    "source_name": "物流客服常规合规规则",
+    "source_url": "https://www.samr.gov.cn/"
+  },
+  {
+    "id": "faq-material-common",
+    "kb_type": "商品FAQ",
+    "shop_id": "shop-demo",
+    "product_id": "sku-scarf",
+    "intent_scope": [
+      "售前咨询"
+    ],
+    "title": "围巾材质常见问答",
+    "content": "围巾材质说明应以商品详情页标注为准；若用户关注保暖性触感和厚薄，可结合商品卖点做客观介绍，不应虚构成分或夸大功能。",
+    "source_name": "店铺商品信息规范",
+    "source_url": "https://www.samr.gov.cn/"
+  },
+  {
+    "id": "faq-price-display",
+    "kb_type": "商品FAQ",
+    "shop_id": "shop-demo",
+    "product_id": "sku-scarf",
+    "intent_scope": [
+      "价格咨询"
+    ],
+    "title": "价格活动展示说明",
+    "content": "关于价格优惠券和活动，客服应引导用户以下单页实时展示为准，不应承诺后续一定补差或永久保价。",
+    "source_name": "电商价格沟通常规规范",
+    "source_url": "https://www.samr.gov.cn/"
+  },
+  {
+    "id": "aftersale-damaged-goods",
+    "kb_type": "售后政策",
+    "shop_id": "shop-demo",
+    "product_id": "",
+    "intent_scope": [
+      "售后"
+    ],
+    "title": "破损少件处理说明",
+    "content": "若用户反馈商品破损或少件，应优先引导通过订单售后入口提交照片或视频凭证，再由平台和商家依据证据审核处理。",
+    "source_name": "售后取证处理规范",
+    "source_url": "https://www.samr.gov.cn/"
+  }
+]

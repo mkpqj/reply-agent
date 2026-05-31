@@ -1,0 +1,4 @@
+id,kb_type,shop_id,product_id,intent_scope,title,content
+faq-coat-size,商品FAQ,shop-demo,sku-coat,售前咨询,大衣尺码建议,版型偏宽松，日常按常规尺码选择即可；如偏好修身效果可参考详情页尺码表后选小一码。
+logistics-holiday,物流规则,shop-demo,,"催发货,价格咨询",节假日发货说明,节假日和大促期间仓库订单量较大，发货时效可能顺延，请以下单页和物流状态为准。
+aftersale-missing-item,售后政策,shop-demo,,"售后,退换货",少件处理说明,若发现少件，请优先通过订单售后入口上传开箱视频或照片，我们会按平台规则协助核实处理。

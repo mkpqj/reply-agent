@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agent 中台指挥台</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=DM+Sans:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="grain"></div>
+    <main class="shell">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">XIAOHONGSHU MERCHANT OPS</p>
+          <h1>客服 Agent 风险指挥台</h1>
+          <p class="subtitle">
+            把自动回复、质检拦截、会话风险和人工接管放进一张可操作的中台视图。
+          </p>
+        </div>
+        <div class="hero-band">
+          <div class="band-card accent">
+            <span>中台状态</span>
+            <strong id="agentStatus">运行中</strong>
+          </div>
+          <div class="band-card">
+            <span>自动回复</span>
+            <strong id="autoReplySwitchText">已开启</strong>
+          </div>
+          <div class="band-card">
+            <span>演示模式</span>
+            <strong>可一键生成场景</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="demo-strip">
+        <div class="demo-copy">
+          <p class="panel-kicker">DEMO ACTIONS</p>
+          <h2>一键生成典型客服场景</h2>
+          <p>
+            用这组演示动作快速展示售前、催发货、售后、退换货、价格咨询和高风险升级路径，不需要先手动调接口。
+          </p>
+        </div>
+        <div class="demo-actions">
+          <button class="primary-button" id="seedDemoButton">重置并灌入演示数据</button>
+          <button class="ghost-button demo-button" data-scenario="售前咨询">售前咨询</button>
+          <button class="ghost-button demo-button" data-scenario="催发货">催发货</button>
+          <button class="ghost-button demo-button" data-scenario="售后">售后</button>
+          <button class="ghost-button demo-button" data-scenario="退换货">退换货</button>
+          <button class="ghost-button demo-button" data-scenario="价格咨询">价格咨询</button>
+          <button class="ghost-button demo-button" data-scenario="混合风险">混合风险</button>
+        </div>
+        <p class="inline-hint" id="demoHint"></p>
+      </section>
+
+      <section class="simulator">
+        <div class="chat-shell">
+          <div class="chat-topbar">
+            <div>
+              <p class="panel-kicker">LIVE CHAT DEMO</p>
+              <h2>模拟客户与 Agent 对话</h2>
+            </div>
+            <div class="conversation-meta">
+              <span class="meta-pill" id="chatModelStatus">模板模式</span>
+              <span class="meta-pill" id="chatConversationStatus">新会话</span>
+            </div>
+          </div>
+
+          <div class="chat-config">
+            <label>
+              <span>会话模式</span>
+              <select id="simConversationMode">
+                <option value="selected">发送到当前选中会话</option>
+                <option value="new">创建新的模拟会话</option>
+              </select>
+            </label>
+            <label>
+              <span>店铺 ID</span>
+              <input id="simShopId" value="shop-demo" />
+            </label>
+            <label>
+              <span>用户 ID</span>
+              <input id="simUserId" value="manual-user-001" />
+            </label>
+            <label>
+              <span>商品 ID</span>
+              <input id="simProductId" value="sku-scarf" />
+            </label>
+            <label>
+              <span>订单状态</span>
+              <select id="simOrderStatus">
+                <option value="">无订单上下文</option>
+                <option value="paid">paid</option>
+                <option value="delivered">delivered</option>
+                <option value="closed">closed</option>
+              </select>
+            </label>
+            <label class="toggle-row">
+              <span>是否预售</span>
+              <input type="checkbox" id="simIsPresale" />
+            </label>
+          </div>
+
+          <div class="chat-board" id="chatBoard">
+            <div class="chat-empty">
+              <p>左侧代表模拟客户，右侧代表 Agent。</p>
+              <p>发送一条消息后，这里会像真实聊天窗口一样展示对话气泡。</p>
+            </div>
+          </div>
+
+          <form id="simulatorForm" class="chat-compose">
+            <textarea
+              id="simMessage"
+              rows="3"
+              placeholder="在这里输入模拟客户消息，例如：怎么还没发货，明天能到吗？"
+            ></textarea>
+            <div class="sim-actions">
+              <button type="submit" class="primary-button">发送模拟消息</button>
+              <button type="button" class="ghost-button" id="fillRiskExampleButton">填入高风险示例</button>
+              <button type="button" class="ghost-button" id="fillPresaleExampleButton">填入售前示例</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="simulator-side">
+          <div class="simulator-copy">
+            <p class="panel-kicker">AGENT TRACE</p>
+            <h2>本轮推理结果</h2>
+            <p>
+              每次发送后，这里会展示意图识别、知识命中、质检结论和是否自动发送，方便你演示 Agent 的内部链路。
+            </p>
+          </div>
+          <div class="sim-result" id="simulatorResult">
+            <p class="empty-state">发送后，这里会显示本轮 Agent 的识别结果、回复内容和质检结论。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="metrics" id="metricsGrid"></section>
+
+      <section class="kb-manager">
+        <div class="panel panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">KNOWLEDGE BASE</p>
+              <h2>知识库导入与预览</h2>
+            </div>
+          </div>
+          <div class="kb-layout">
+            <div class="kb-import">
+              <p class="conversation-preview">
+                当前先支持上传 `CSV` 文件。表头需要包含：
+                `id,kb_type,shop_id,product_id,intent_scope,title,content`
+              </p>
+              <form id="kbImportForm" class="config-form">
+                <label>
+                  <span>选择 CSV 文件</span>
+                  <input type="file" id="kbFileInput" accept=".csv" />
+                </label>
+                <button type="submit" class="primary-button">导入知识库</button>
+                <p class="inline-hint" id="kbImportHint"></p>
+              </form>
+            </div>
+            <div class="kb-preview">
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>类别</th>
+                      <th>商品</th>
+                      <th>意图</th>
+                      <th>标题</th>
+                    </tr>
+                  </thead>
+                  <tbody id="kbTableBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="panel panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">FOLLOW-UP QUEUE</p>
+              <h2>待跟进队列</h2>
+            </div>
+            <button class="ghost-button" id="refreshQueueButton">刷新队列</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>任务</th>
+                  <th>优先级</th>
+                  <th>状态</th>
+                  <th>原因</th>
+                  <th>截止</th>
+                </tr>
+              </thead>
+              <tbody id="queueTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">SYSTEM CONFIG</p>
+              <h2>运行策略</h2>
+            </div>
+          </div>
+          <form id="configForm" class="config-form">
+            <label class="toggle-row">
+              <span>自动回复开关</span>
+              <input type="checkbox" id="autoReplyEnabled" />
+            </label>
+            <label class="toggle-row">
+              <span>启用大模型回复</span>
+              <input type="checkbox" id="llmEnabled" />
+            </label>
+            <label>
+              <span>模型名称</span>
+              <input id="llmModel" value="gpt-4.1-mini" />
+            </label>
+            <label>
+              <span>意图置信度阈值</span>
+              <input type="number" step="0.01" min="0.5" max="0.99" id="confidenceThreshold" />
+            </label>
+            <label class="toggle-row">
+              <span>敏感场景未命中知识时阻断</span>
+              <input type="checkbox" id="qualityBlockSwitch" />
+            </label>
+            <label>
+              <span>承诺风险词</span>
+              <textarea id="promisePatterns" rows="6"></textarea>
+            </label>
+            <button type="submit" class="primary-button">保存策略</button>
+            <p class="inline-hint" id="configHint"></p>
+          </form>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="panel panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">CONVERSATIONS</p>
+              <h2>最近会话</h2>
+            </div>
+            <div class="filter-row">
+              <select id="statusFilter">
+                <option value="">全部状态</option>
+                <option value="open">处理中</option>
+                <option value="pending_review">待人工</option>
+              </select>
+              <select id="riskFilter">
+                <option value="">全部风险</option>
+                <option value="low">低风险</option>
+                <option value="medium">中风险</option>
+                <option value="high">高风险</option>
+              </select>
+              <button class="ghost-button" id="refreshConversationsButton">刷新会话</button>
+            </div>
+          </div>
+          <div class="conversation-list" id="conversationList"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">DETAIL VIEW</p>
+              <h2>会话侧写</h2>
+            </div>
+            <button class="ghost-button" id="deleteConversationButton" disabled>删除当前会话</button>
+          </div>
+          <div id="conversationDetail" class="detail-card">
+            <p class="empty-state">选择左侧会话后，这里会显示消息、回复、质检和跟进信息。</p>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+  </html>

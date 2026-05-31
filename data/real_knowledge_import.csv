@@ -1,0 +1,9 @@
+id,kb_type,shop_id,product_id,intent_scope,title,content,source_name,source_url
+law-return-7days,售后政策,shop-demo,,"售后,退换货",七日无理由退货规则,根据网络购买商品七日无理由退货相关规定，符合条件的商品在签收后可依法申请七日无理由退货，但定制鲜活等依法不适用的商品除外，具体以平台审核和商品实际情况为准。,国家市场监督管理总局,https://www.samr.gov.cn/
+law-preserve-goods,售后政策,shop-demo,,"售后,退换货",商品完好要求,消费者申请七日无理由退货时，商品应保持完好。客服回复时应提示用户尽量保持商品及配件完整，并以平台审核结果为准。,国家市场监督管理总局,https://www.samr.gov.cn/
+law-no-direct-compensation,售后政策,shop-demo,,"售后,价格咨询",赔付与补差需审核,涉及退款赔付补差时，客服不得直接作出越权承诺，应提示用户以订单状态活动规则和平台审核结果为准。,消费者权益保护通用合规要求,https://www.samr.gov.cn/
+logistics-delay-holiday,物流规则,shop-demo,,"催发货,价格咨询",节假日物流顺延说明,节假日及大促期间物流和仓库处理时效可能顺延，客服应说明实际发货与到达时间以订单页和物流轨迹更新为准，不应承诺具体到达时刻。,物流客服常规合规规则,https://www.samr.gov.cn/
+logistics-no-promise-arrival,物流规则,shop-demo,,"催发货",不得承诺具体到达时间,面对催发货或催物流问题时，客服可说明当前订单或物流节点，但不应承诺明天必到今天必发等确定性时效表述。,物流客服常规合规规则,https://www.samr.gov.cn/
+faq-material-common,商品FAQ,shop-demo,sku-scarf,售前咨询,围巾材质常见问答,围巾材质说明应以商品详情页标注为准；若用户关注保暖性触感和厚薄，可结合商品卖点做客观介绍，不应虚构成分或夸大功能。,店铺商品信息规范,https://www.samr.gov.cn/
+faq-price-display,商品FAQ,shop-demo,sku-scarf,价格咨询,价格活动展示说明,关于价格优惠券和活动，客服应引导用户以下单页实时展示为准，不应承诺后续一定补差或永久保价。,电商价格沟通常规规范,https://www.samr.gov.cn/
+aftersale-damaged-goods,售后政策,shop-demo,,"售后",破损少件处理说明,若用户反馈商品破损或少件，应优先引导通过订单售后入口提交照片或视频凭证，再由平台和商家依据证据审核处理。,售后取证处理规范,https://www.samr.gov.cn/
