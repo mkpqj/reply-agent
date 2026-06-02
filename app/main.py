@@ -12,6 +12,8 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.database import init_db
 from app.models.schemas import (
+    AgentTracePreviewRequest,
+    AgentTracePreviewResponse,
     ChatStreamEvent,
     ChannelEventRequest,
     ClaimTaskRequest,
@@ -22,6 +24,7 @@ from app.models.schemas import (
     IntentRecognizeRequest,
     KnowledgeDocument,
     KnowledgeImportResult,
+    KbVectorIndexBuildResult,
     KbSearchRequest,
     ManualFollowUpReplyRequest,
     ProcessedEventResponse,
@@ -158,8 +161,8 @@ def recognize_intent(request: IntentRecognizeRequest):
 
 
 @app.post("/internal/kb/search")
-def search_knowledge(request: KbSearchRequest):
-    return kb_service.search(request)
+async def search_knowledge(request: KbSearchRequest):
+    return await kb_service.search(request)
 
 
 @app.get("/api/knowledge-base", response_model=list[KnowledgeDocument])
@@ -180,6 +183,11 @@ async def import_knowledge_base(file: UploadFile = File(...)):
     return KnowledgeImportResult(**result)
 
 
+@app.post("/api/knowledge-base/vector-index/rebuild", response_model=KbVectorIndexBuildResult)
+async def rebuild_knowledge_vector_index() -> KbVectorIndexBuildResult:
+    return KbVectorIndexBuildResult(**await kb_service.rebuild_vector_index())
+
+
 @app.post("/internal/reply/generate")
 async def generate_reply(request: ReplyGenerateRequest):
     return await reply_service.generate(
@@ -192,6 +200,26 @@ async def generate_reply(request: ReplyGenerateRequest):
 @app.post("/internal/reply/check")
 def check_reply(request: ReplyCheckRequest):
     return quality_service.check(request, config=store.get_system_config())
+
+
+@app.post("/internal/agent/trace-preview", response_model=AgentTracePreviewResponse)
+async def preview_agent_trace(request: AgentTracePreviewRequest) -> AgentTracePreviewResponse:
+    result = await orchestrator.multi_agent_runtime.run(
+        request=request,
+        conversation_id=request.conversation_id or "trace_preview",
+        history=request.conversation_history,
+        runtime_config=store.get_system_config(),
+    )
+    return AgentTracePreviewResponse(
+        intent_result=result.intent_result,
+        knowledge_hits=result.knowledge_hits,
+        reply=result.reply,
+        quality_check=result.quality_check,
+        should_handoff=result.should_handoff,
+        decision_reason=result.decision_reason,
+        agent_plan=result.agent_plan,
+        agent_trace=result.agent_trace,
+    )
 
 
 @app.get("/api/conversations/{conversation_id}", response_model=ConversationDetail)

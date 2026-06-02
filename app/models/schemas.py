@@ -96,6 +96,22 @@ class QualityCheckResult(BaseModel):
     review_mode: Literal["auto_pass", "manual_review", "blocked"]
 
 
+class AgentPlanStep(BaseModel):
+    step_id: str
+    agent: str
+    objective: str
+    status: Literal["pending", "running", "completed", "skipped"] = "pending"
+    observations: list[str] = Field(default_factory=list)
+
+
+class AgentTraceEvent(BaseModel):
+    step_id: str
+    agent: str
+    action: str
+    output: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class FollowUpTaskView(BaseModel):
     id: str
     conversation_id: str
@@ -120,6 +136,8 @@ class ProcessedEventResponse(BaseModel):
     action: Literal["auto_replied", "pending_review"]
     follow_up_task_id: str | None = None
     final_reply: str | None = None
+    agent_plan: list[AgentPlanStep] = Field(default_factory=list)
+    agent_trace: list[AgentTraceEvent] = Field(default_factory=list)
 
 
 class ChatStreamEvent(BaseModel):
@@ -221,3 +239,24 @@ class KnowledgeImportResult(BaseModel):
     skipped_count: int
     total_count: int
     sample_ids: list[str] = Field(default_factory=list)
+
+
+class AgentTracePreviewRequest(ChannelEventRequest):
+    conversation_history: list[str] = Field(default_factory=list)
+
+
+class AgentTracePreviewResponse(BaseModel):
+    intent_result: IntentResult
+    knowledge_hits: list[KnowledgeHit]
+    reply: ReplyDraft
+    quality_check: QualityCheckResult
+    should_handoff: bool
+    decision_reason: str
+    agent_plan: list[AgentPlanStep]
+    agent_trace: list[AgentTraceEvent]
+
+
+class KbVectorIndexBuildResult(BaseModel):
+    enabled: bool
+    indexed_count: int
+    model: str

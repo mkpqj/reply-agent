@@ -61,9 +61,12 @@ class LlmGateway:
             "Content-Type": "application/json",
         }
 
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            response = await client.post(f"{LLM_BASE_URL}/chat/completions", headers=headers, json=payload)
-            response.raise_for_status()
-            data = response.json()
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                response = await client.post(f"{LLM_BASE_URL}/chat/completions", headers=headers, json=payload)
+                response.raise_for_status()
+                data = response.json()
+        except httpx.HTTPError:
+            return None
 
         return data["choices"][0]["message"]["content"].strip()
