@@ -7,6 +7,7 @@ import json
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.core.database import init_db
@@ -22,6 +23,7 @@ from app.models.schemas import (
     KnowledgeDocument,
     KnowledgeImportResult,
     KbSearchRequest,
+    ManualFollowUpReplyRequest,
     ProcessedEventResponse,
     ReplyCheckRequest,
     ReplyGenerateRequest,
@@ -60,6 +62,11 @@ demo_service = DemoService(store=store, orchestrator=orchestrator)
 async def lifespan(_: FastAPI):
     init_db()
     store.ensure_default_config()
+    store.backfill_follow_up_task_message_ids()
+    store.restore_missing_follow_up_tasks(
+        confidence_threshold=store.get_system_config().get("intent_confidence_threshold", 0.7)
+    )
+    store.cleanup_duplicate_follow_up_tasks()
     yield
 
 
@@ -79,7 +86,12 @@ def health() -> dict[str, str]:
 
 @app.get("/")
 def console_index():
-    return FileResponse("static/index.html")
+    with open("static/index.html", "r", encoding="utf-8") as file:
+        html = file.read()
+    version = "20260602-intent-handoff-fix"
+    html = html.replace("/static/styles.css", f"/static/styles.css?v={version}")
+    html = html.replace("/static/app.js", f"/static/app.js?v={version}")
+    return HTMLResponse(html)
 
 
 @app.post("/api/channel/xiaohongshu/events", response_model=ProcessedEventResponse)
@@ -212,6 +224,26 @@ def list_follow_up_tasks(status: str | None = Query(default=None)):
     return store.list_follow_up_tasks(status=status)
 
 
+@app.post("/api/follow-up/tasks/cleanup")
+def cleanup_follow_up_tasks():
+    removed = store.cleanup_duplicate_follow_up_tasks()
+    return {"removed": removed}
+
+
+@app.post("/api/follow-up/tasks/clear-open")
+def clear_open_follow_up_tasks():
+    removed = store.clear_open_follow_up_tasks()
+    return {"removed": removed}
+
+
+@app.get("/api/follow-up/tasks/{task_id}")
+def get_follow_up_task_detail(task_id: str):
+    detail = store.get_follow_up_task_detail(task_id)
+    if not detail:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return detail
+
+
 @app.get("/api/dashboard/metrics", response_model=DashboardMetrics)
 def get_dashboard_metrics() -> DashboardMetrics:
     return DashboardMetrics(**store.get_dashboard_metrics())
@@ -238,6 +270,14 @@ def claim_follow_up_task(task_id: str, request: ClaimTaskRequest):
 @app.post("/api/follow-up/tasks/{task_id}/resolve")
 def resolve_follow_up_task(task_id: str, request: ResolveTaskRequest):
     task = store.resolve_task(task_id, request.resolution_note)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task
+
+
+@app.post("/api/follow-up/tasks/{task_id}/manual-reply")
+def manual_reply_follow_up_task(task_id: str, request: ManualFollowUpReplyRequest):
+    task = store.resolve_task_with_manual_reply(task_id, request.manual_reply, request.resolution_note)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return task

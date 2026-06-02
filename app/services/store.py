@@ -14,6 +14,39 @@ def now_iso() -> str:
 
 
 class AgentStore:
+    def _find_follow_up_source_message(self, conn, conversation_id: str, task_created_at: str, message_id: str | None):
+        if message_id:
+            direct = conn.execute(
+                "SELECT * FROM messages WHERE id = ?",
+                (message_id,),
+            ).fetchone()
+            if direct:
+                return direct
+
+        source_message = conn.execute(
+            """
+            SELECT *
+            FROM messages
+            WHERE conversation_id = ? AND sender_type = 'user' AND created_at <= ?
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (conversation_id, task_created_at),
+        ).fetchone()
+        if source_message:
+            return source_message
+
+        return conn.execute(
+            """
+            SELECT *
+            FROM messages
+            WHERE conversation_id = ? AND sender_type = 'user'
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (conversation_id,),
+        ).fetchone()
+
     def _default_config(self) -> dict[str, Any]:
         return {
             "auto_reply_enabled": True,
@@ -255,22 +288,221 @@ class AgentStore:
                     (f"tag_{uuid.uuid4().hex[:12]}", conversation_id, tag, "system", 1, now_iso()),
                 )
 
-    def create_follow_up_task(self, conversation_id: str, reason: str, priority: str) -> str:
-        task_id = f"task_{uuid.uuid4().hex[:12]}"
-        due_at = (datetime.now(UTC) + timedelta(hours=4 if priority == "P1" else 12)).isoformat()
+    def create_follow_up_task(self, conversation_id: str, message_id: str, reason: str, priority: str) -> str:
         with get_connection() as conn:
+            existing = conn.execute(
+                """
+                SELECT * FROM follow_up_tasks
+                WHERE conversation_id = ? AND message_id = ? AND status IN ('open', 'claimed')
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (conversation_id, message_id),
+            ).fetchone()
+
+            due_at = (datetime.now(UTC) + timedelta(hours=4 if priority == "P1" else 12)).isoformat()
+            if existing:
+                conn.execute(
+                    """
+                    UPDATE follow_up_tasks
+                    SET reason = ?, priority = ?, due_at = ?
+                    WHERE id = ?
+                    """,
+                    (reason, priority, due_at, existing["id"]),
+                )
+                conn.execute(
+                    "UPDATE conversations SET status = ?, risk_level = ? WHERE id = ?",
+                    ("pending_review", "high" if priority == "P1" else "medium", conversation_id),
+                )
+                return existing["id"]
+
+            task_id = f"task_{uuid.uuid4().hex[:12]}"
             conn.execute(
                 """
-                INSERT INTO follow_up_tasks (id, conversation_id, reason, priority, status, assignee_id, due_at, created_at, resolved_at, resolution_note)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO follow_up_tasks (id, conversation_id, message_id, reason, priority, status, assignee_id, due_at, created_at, resolved_at, resolution_note)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (task_id, conversation_id, reason, priority, "open", None, due_at, now_iso(), None, None),
+                (task_id, conversation_id, message_id, reason, priority, "open", None, due_at, now_iso(), None, None),
             )
             conn.execute(
                 "UPDATE conversations SET status = ?, risk_level = ? WHERE id = ?",
                 ("pending_review", "high" if priority == "P1" else "medium", conversation_id),
             )
         return task_id
+
+    def cleanup_duplicate_follow_up_tasks(self) -> int:
+        removed = 0
+        with get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, conversation_id, message_id, status, created_at
+                FROM follow_up_tasks
+                WHERE status IN ('open', 'claimed')
+                ORDER BY conversation_id ASC, message_id ASC, created_at DESC
+                """
+            ).fetchall()
+
+            keep_by_message: dict[tuple[str, str | None], str] = {}
+            for row in rows:
+                dedupe_key = (
+                    row["conversation_id"],
+                    row["message_id"] if row["message_id"] is not None else row["id"],
+                )
+                if dedupe_key not in keep_by_message:
+                    keep_by_message[dedupe_key] = row["id"]
+                    continue
+                conn.execute("DELETE FROM follow_up_tasks WHERE id = ?", (row["id"],))
+                removed += 1
+        return removed
+
+    def backfill_follow_up_task_message_ids(self) -> int:
+        updated = 0
+        with get_connection() as conn:
+            tasks = conn.execute(
+                """
+                SELECT id, conversation_id, created_at
+                FROM follow_up_tasks
+                WHERE message_id IS NULL
+                ORDER BY conversation_id ASC, created_at ASC
+                """
+            ).fetchall()
+
+            used_message_ids = {
+                row["message_id"]
+                for row in conn.execute("SELECT message_id FROM follow_up_tasks WHERE message_id IS NOT NULL").fetchall()
+            }
+
+            for task in tasks:
+                candidate = conn.execute(
+                    """
+                    SELECT id
+                    FROM messages
+                    WHERE conversation_id = ? AND sender_type = 'user' AND created_at <= ?
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """,
+                    (task["conversation_id"], task["created_at"]),
+                ).fetchone()
+
+                if not candidate:
+                    candidate = conn.execute(
+                        """
+                        SELECT id
+                        FROM messages
+                        WHERE conversation_id = ? AND sender_type = 'user'
+                        ORDER BY created_at DESC
+                        LIMIT 1
+                        """,
+                        (task["conversation_id"],),
+                    ).fetchone()
+
+                if not candidate:
+                    continue
+
+                candidate_id = candidate["id"]
+                if candidate_id in used_message_ids:
+                    candidate = conn.execute(
+                        """
+                        SELECT id
+                        FROM messages
+                        WHERE conversation_id = ? AND sender_type = 'user' AND id NOT IN (
+                            SELECT message_id FROM follow_up_tasks WHERE message_id IS NOT NULL
+                        )
+                        ORDER BY ABS(strftime('%s', created_at) - strftime('%s', ?)) ASC, created_at ASC
+                        LIMIT 1
+                        """,
+                        (task["conversation_id"], task["created_at"]),
+                    ).fetchone()
+                    if not candidate:
+                        continue
+                    candidate_id = candidate["id"]
+
+                conn.execute(
+                    "UPDATE follow_up_tasks SET message_id = ? WHERE id = ?",
+                    (candidate_id, task["id"]),
+                )
+                used_message_ids.add(candidate_id)
+                updated += 1
+
+        return updated
+
+    def restore_missing_follow_up_tasks(self, confidence_threshold: float = 0.7) -> int:
+        restored = 0
+        with get_connection() as conn:
+            candidates = conn.execute(
+                """
+                SELECT
+                    m.id AS message_id,
+                    m.conversation_id,
+                    m.created_at AS message_created_at,
+                    c.risk_level AS conversation_risk_level,
+                    rr.reply_status,
+                    rr.prompt_template,
+                    rr.created_at AS reply_created_at,
+                    COALESCE(ir.confidence, 1.0) AS confidence,
+                    EXISTS(
+                        SELECT 1
+                        FROM knowledge_hits kh
+                        WHERE kh.message_id = m.id
+                    ) AS has_knowledge
+                FROM messages m
+                JOIN reply_records rr ON rr.message_id = m.id
+                LEFT JOIN intent_results ir ON ir.message_id = m.id
+                JOIN conversations c ON c.id = m.conversation_id
+                WHERE m.sender_type = 'user'
+                ORDER BY m.created_at ASC, rr.created_at ASC
+                """
+            ).fetchall()
+
+            for candidate in candidates:
+                has_task = conn.execute(
+                    "SELECT 1 FROM follow_up_tasks WHERE message_id = ? LIMIT 1",
+                    (candidate["message_id"],),
+                ).fetchone()
+                if has_task:
+                    continue
+
+                needs_follow_up = (
+                    candidate["reply_status"] == "pending_review"
+                    or candidate["prompt_template"] == "human_handoff_template"
+                )
+                if not needs_follow_up:
+                    continue
+
+                reason_parts: list[str] = []
+                if candidate["confidence"] < confidence_threshold:
+                    reason_parts.append("低置信度识别")
+                if not candidate["has_knowledge"]:
+                    reason_parts.append("知识未命中")
+                reason = "；".join(reason_parts) if reason_parts else "需要人工跟进"
+                priority = "P1" if candidate["conversation_risk_level"] == "high" else "P2"
+                due_at = (datetime.now(UTC) + timedelta(hours=4 if priority == "P1" else 12)).isoformat()
+
+                conn.execute(
+                    """
+                    INSERT INTO follow_up_tasks (
+                        id, conversation_id, message_id, reason, priority, status,
+                        assignee_id, due_at, created_at, resolved_at, resolution_note
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        f"task_{uuid.uuid4().hex[:12]}",
+                        candidate["conversation_id"],
+                        candidate["message_id"],
+                        reason,
+                        priority,
+                        "open",
+                        None,
+                        due_at,
+                        candidate["reply_created_at"] or candidate["message_created_at"] or now_iso(),
+                        None,
+                        None,
+                    ),
+                )
+                restored += 1
+
+        return restored
 
     def update_conversation(self, conversation_id: str, current_intent: str, risk_level: str, status: str) -> None:
         with get_connection() as conn:
@@ -497,16 +729,95 @@ class AgentStore:
         return config
 
     def list_follow_up_tasks(self, status: str | None = None) -> list[dict[str, Any]]:
-        query = "SELECT * FROM follow_up_tasks"
+        query = """
+            SELECT
+                fut.*,
+                c.user_id,
+                c.current_intent,
+                COALESCE(
+                    m.content,
+                    (
+                        SELECT m2.content
+                        FROM messages m2
+                        WHERE m2.conversation_id = fut.conversation_id
+                          AND m2.sender_type = 'user'
+                          AND m2.created_at <= fut.created_at
+                        ORDER BY m2.created_at DESC
+                        LIMIT 1
+                    ),
+                    (
+                        SELECT m3.content
+                        FROM messages m3
+                        WHERE m3.conversation_id = fut.conversation_id AND m3.sender_type = 'user'
+                        ORDER BY m3.created_at DESC
+                        LIMIT 1
+                    )
+                ) AS message_content
+            FROM follow_up_tasks fut
+            LEFT JOIN conversations c ON c.id = fut.conversation_id
+            LEFT JOIN messages m ON m.id = fut.message_id
+        """
         params: tuple[Any, ...] = ()
         if status:
-            query += " WHERE status = ?"
+            query += " WHERE fut.status = ?"
             params = (status,)
-        query += " ORDER BY due_at ASC, created_at ASC"
+        else:
+            query += " WHERE fut.status IN ('open', 'claimed')"
+        query += " ORDER BY fut.due_at ASC, fut.created_at ASC"
 
         with get_connection() as conn:
             rows = conn.execute(query, params).fetchall()
         return [dict(row) for row in rows]
+
+    def get_follow_up_task_detail(self, task_id: str) -> dict[str, Any] | None:
+        with get_connection() as conn:
+            task = conn.execute("SELECT * FROM follow_up_tasks WHERE id = ?", (task_id,)).fetchone()
+            if not task:
+                return None
+
+            conversation = conn.execute(
+                "SELECT * FROM conversations WHERE id = ?",
+                (task["conversation_id"],),
+            ).fetchone()
+            source_message = self._find_follow_up_source_message(
+                conn,
+                task["conversation_id"],
+                task["created_at"],
+                task["message_id"],
+            )
+            latest_reply = conn.execute(
+                """
+                SELECT rr.*
+                FROM reply_records rr
+                JOIN messages m ON m.id = rr.message_id
+                WHERE (
+                    rr.message_id = ?
+                    OR (? IS NULL AND m.conversation_id = ?)
+                )
+                ORDER BY rr.created_at DESC
+                LIMIT 1
+                """,
+                (task["message_id"], task["message_id"], task["conversation_id"]),
+            ).fetchone()
+            latest_quality = None
+            if latest_reply:
+                latest_quality = conn.execute(
+                    "SELECT * FROM quality_checks WHERE reply_id = ? ORDER BY created_at DESC LIMIT 1",
+                    (latest_reply["id"],),
+                ).fetchone()
+
+        task_dict = dict(task)
+        if source_message and not task_dict.get("message_id"):
+            task_dict["message_id"] = source_message["id"]
+        task_dict["message_content"] = source_message["content"] if source_message else None
+
+        return {
+            "task": task_dict,
+            "conversation": dict(conversation) if conversation else None,
+            "source_message": dict(source_message) if source_message else None,
+            "latest_reply": dict(latest_reply) if latest_reply else None,
+            "latest_quality_check": dict(latest_quality) if latest_quality else None,
+        }
 
     def claim_task(self, task_id: str, assignee_id: str) -> dict[str, Any] | None:
         with get_connection() as conn:
@@ -546,3 +857,82 @@ class AgentStore:
             )
             updated = conn.execute("SELECT * FROM follow_up_tasks WHERE id = ?", (task_id,)).fetchone()
         return dict(updated) if updated else None
+
+    def resolve_task_with_manual_reply(self, task_id: str, manual_reply: str, resolution_note: str) -> dict[str, Any] | None:
+        with get_connection() as conn:
+            task = conn.execute("SELECT * FROM follow_up_tasks WHERE id = ?", (task_id,)).fetchone()
+            if not task:
+                return None
+
+            conversation_id = task["conversation_id"]
+            target_message_id = task["message_id"]
+            if target_message_id:
+                reply_id = f"rep_{uuid.uuid4().hex[:12]}"
+                conn.execute(
+                    """
+                    INSERT INTO reply_records (id, message_id, draft_reply, final_reply, reply_status, prompt_template, model_name, cited_knowledge_ids_json, risk_notes_json, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        reply_id,
+                        target_message_id,
+                        manual_reply,
+                        manual_reply,
+                        "manual_sent",
+                        "manual_follow_up",
+                        "human-agent",
+                        json.dumps([], ensure_ascii=False),
+                        json.dumps(["人工处理回复"], ensure_ascii=False),
+                        now_iso(),
+                    ),
+                )
+
+            resolved_at = now_iso()
+            conn.execute(
+                "UPDATE follow_up_tasks SET status = ?, resolved_at = ?, resolution_note = ? WHERE id = ?",
+                ("resolved", resolved_at, resolution_note, task_id),
+            )
+            conn.execute(
+                """
+                UPDATE conversations
+                SET status = CASE
+                    WHEN EXISTS (
+                        SELECT 1 FROM follow_up_tasks
+                        WHERE conversation_id = ? AND status IN ('open', 'claimed')
+                    ) THEN 'pending_review'
+                    ELSE 'open'
+                END,
+                risk_level = CASE
+                    WHEN EXISTS (
+                        SELECT 1 FROM follow_up_tasks
+                        WHERE conversation_id = ? AND status IN ('open', 'claimed')
+                    ) THEN risk_level
+                    ELSE 'low'
+                END
+                WHERE id = ?
+                """,
+                (conversation_id, conversation_id, conversation_id),
+            )
+            updated = conn.execute("SELECT * FROM follow_up_tasks WHERE id = ?", (task_id,)).fetchone()
+        return dict(updated) if updated else None
+
+    def clear_open_follow_up_tasks(self) -> int:
+        with get_connection() as conn:
+            rows = conn.execute("SELECT id, conversation_id FROM follow_up_tasks WHERE status IN ('open', 'claimed')").fetchall()
+            removed = len(rows)
+            for row in rows:
+                conn.execute("DELETE FROM follow_up_tasks WHERE id = ?", (row["id"],))
+                conn.execute(
+                    """
+                    UPDATE conversations
+                    SET status = CASE
+                        WHEN EXISTS (
+                            SELECT 1 FROM follow_up_tasks WHERE conversation_id = ? AND status IN ('open', 'claimed')
+                        ) THEN status
+                        ELSE 'open'
+                    END
+                    WHERE id = ?
+                    """,
+                    (row["conversation_id"], row["conversation_id"]),
+                )
+        return removed

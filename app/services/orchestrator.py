@@ -9,11 +9,26 @@ from app.models.schemas import (
     ReplyGenerateRequest,
 )
 from app.services.intent import IntentService
+from app.services.intent import is_greeting_message
 from app.services.knowledge_base import KnowledgeBaseService
 from app.services.quality import QualityService
 from app.services.reply import ReplyService
 from app.services.store import AgentStore
 from app.services.tagging import TaggingService
+
+
+HUMAN_HANDOFF_TEMPLATES = {
+    "售前咨询": "您好，已收到您关于商品信息的咨询。由于当前需要进一步核实细节，我暂时无法给您准确结论。建议您直接联系人工客服，他们会结合商品实际情况尽快为您确认。感谢您的理解！",
+    "催发货": "您好，非常理解您希望尽快了解发货进度。由于当前信息有限，我暂时无法确认具体的发货或到货安排。建议您直接联系人工客服，他们会帮您核实并尽快处理。感谢您的理解！",
+    "售后": "您好，非常抱歉给您带来困扰。您反馈的售后问题我已经收到，但由于当前还需要进一步核实订单和处理信息，我暂时无法直接确认最终方案。建议您直接联系人工客服，他们会尽快帮您核实并处理。感谢您的理解！",
+    "退换货": "您好，关于您提到的退换货问题，我已经收到反馈。由于当前还需要结合订单和售后规则进一步确认，我暂时无法直接给您最终处理结论。建议您直接联系人工客服，他们会尽快帮您核实并处理。感谢您的理解！",
+    "价格咨询": "您好，关于您咨询的价格或优惠问题，我已经收到。由于当前还需要进一步核实活动和订单信息，我暂时无法直接为您确认最终价格方案。建议您直接联系人工客服，他们会尽快帮您核实并处理。感谢您的理解！",
+    "其他": "您好，您反馈的问题我已经收到。由于当前信息有限，我暂时无法给您准确结论。建议您直接联系人工客服，他们会帮您进一步核实并尽快处理。感谢您的理解！",
+}
+
+
+def human_handoff_template_for_intent(intent: str) -> str:
+    return HUMAN_HANDOFF_TEMPLATES.get(intent, HUMAN_HANDOFF_TEMPLATES["其他"])
 
 
 class ConversationOrchestrator:
@@ -98,7 +113,17 @@ class ConversationOrchestrator:
             quality_result=quality_check,
             knowledge_hit_count=len(knowledge_hits),
         )
+        if intent_result.intent == "其他" and is_greeting_message(request.content):
+            tags = [tag for tag in tags if tag not in {"低置信度识别", "知识未命中"}]
         self.store.replace_tags(conversation["id"], tags)
+
+        needs_follow_up = (
+            self.tagging_service.needs_follow_up(tags, quality_check)
+            or intent_result.needs_human
+            or not runtime_config.get("auto_reply_enabled", True)
+        )
+        if intent_result.intent == "其他" and is_greeting_message(request.content):
+            needs_follow_up = False
 
         follow_up_task_id = None
         action = "auto_replied"
@@ -107,22 +132,24 @@ class ConversationOrchestrator:
         conversation_status = "open" if final_reply else "pending_review"
         risk_level = quality_check.risk_level
 
-        if not runtime_config.get("auto_reply_enabled", True):
+        if needs_follow_up:
             action = "pending_review"
-            final_reply = None
-            reply_status = "pending_review"
-            conversation_status = "pending_review"
-            tags = sorted(set(tags) | {"自动回复关闭"})
-            self.store.replace_tags(conversation["id"], tags)
+            handoff_reply = human_handoff_template_for_intent(intent_result.intent)
+            reply.draft_reply = handoff_reply
+            reply.prompt_template = "human_handoff_template"
+            reply.model_name = "system-template"
+            reply.cited_knowledge_ids = []
+            if "已发送人工客服引导模板回复。" not in reply.risk_notes:
+                reply.risk_notes.append("已发送人工客服引导模板回复。")
 
-        if self.tagging_service.needs_follow_up(tags, quality_check) or intent_result.needs_human or not runtime_config.get("auto_reply_enabled", True):
-            action = "pending_review"
-            final_reply = None
-            reply_status = "pending_review"
+            final_reply = handoff_reply
+            reply_status = "sent"
             conversation_status = "pending_review"
+            quality_check.review_mode = "manual_review"
+            quality_check.suggestion = "已发送人工客服引导模板，并加入待处理任务队列。"
             priority = self.tagging_service.priority(tags, quality_check)
-            reason = "；".join(tags) if tags else "需要人工复核"
-            follow_up_task_id = self.store.create_follow_up_task(conversation["id"], reason, priority)
+            reason = "；".join(tags) if tags else "需要人工跟进"
+            follow_up_task_id = self.store.create_follow_up_task(conversation["id"], message_id, reason, priority)
 
         reply_id = self.store.add_reply_record(
             message_id=message_id,

@@ -137,6 +137,11 @@ class ResolveTaskRequest(BaseModel):
     resolution_note: str
 
 
+class ManualFollowUpReplyRequest(BaseModel):
+    manual_reply: str
+    resolution_note: str
+
+
 class ConversationDetail(BaseModel):
     conversation: dict[str, Any]
     messages: list[dict[str, Any]]

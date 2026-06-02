@@ -97,6 +97,7 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS follow_up_tasks (
                 id TEXT PRIMARY KEY,
                 conversation_id TEXT NOT NULL,
+                message_id TEXT,
                 reason TEXT NOT NULL,
                 priority TEXT NOT NULL,
                 status TEXT NOT NULL,
@@ -105,7 +106,8 @@ def init_db() -> None:
                 created_at TEXT NOT NULL,
                 resolved_at TEXT,
                 resolution_note TEXT,
-                FOREIGN KEY(conversation_id) REFERENCES conversations(id)
+                FOREIGN KEY(conversation_id) REFERENCES conversations(id),
+                FOREIGN KEY(message_id) REFERENCES messages(id)
             );
 
             CREATE TABLE IF NOT EXISTS system_configs (
@@ -115,6 +117,9 @@ def init_db() -> None:
             );
             """
         )
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(follow_up_tasks)").fetchall()}
+        if "message_id" not in columns:
+            conn.execute("ALTER TABLE follow_up_tasks ADD COLUMN message_id TEXT")
 
 
 @contextmanager

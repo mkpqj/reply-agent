@@ -4,6 +4,7 @@ from typing import Any
 
 from app.core.config import INTENT_PROMPTS, SENSITIVE_INTENTS
 from app.models.schemas import KnowledgeHit, ReplyDraft, ReplyGenerateRequest
+from app.services.intent import GREETING_KEYWORDS, is_greeting_message
 from app.services.llm_gateway import LlmGateway
 
 
@@ -22,6 +23,16 @@ class ReplyService:
         knowledge_hits = [KnowledgeHit.model_validate(hit) if isinstance(hit, dict) else hit for hit in request.knowledge_hits]
         cited_ids = [item.doc_id for item in knowledge_hits]
         risk_notes: list[str] = []
+        lowered = request.user_message.strip().lower()
+
+        if request.intent == "其他" and is_greeting_message(request.user_message):
+            return ReplyDraft(
+                draft_reply="您好，在的呢。您可以直接告诉我您遇到的问题，比如商品信息、发货进度、售后处理或退换货需求，我来继续帮您看看。",
+                prompt_template="greeting_v1",
+                cited_knowledge_ids=[],
+                risk_notes=["命中寒暄问候，已使用接待话术。"],
+                model_name="system-template",
+            )
 
         if request.intent in SENSITIVE_INTENTS and not knowledge_hits:
             draft = "这类问题需要结合订单和店铺规则进一步确认，我先帮您记录下来，并建议由人工客服尽快为您核实处理。"
@@ -52,10 +63,10 @@ class ReplyService:
                 model_name=(runtime_config or {}).get("llm_model", "llm-runtime"),
             )
 
-        lines = []
+        lines: list[str] = []
         if request.intent == "售前咨询":
             knowledge_text = knowledge_hits[0].content if knowledge_hits else "目前商品信息以详情页展示为准。"
-            lines.append(f"您好，这边帮您确认了，{knowledge_text}")
+            lines.append(f"您好，这边帮您确认了一下，{knowledge_text}")
             lines.append("如果您方便的话，也可以告诉我更关注材质、尺寸还是搭配场景，我再继续帮您判断。")
         elif request.intent == "催发货":
             order_status = request.order_context.status if request.order_context else "未知"
@@ -77,8 +88,8 @@ class ReplyService:
             lines.append("如果您准备下单，可以先看一下商品页和结算页是否有可领取优惠。")
         else:
             lines.append("这边已经收到您的问题了。")
-            lines.append("为了给您准确答复，我建议转由人工客服进一步核实后回复您。")
-            risk_notes.append("意图未明确，已使用兜底回复。")
+            lines.append("为了给您准确答复，您可以再补充一下商品、订单或具体诉求，我继续帮您判断。")
+            risk_notes.append("意图未明确，已使用通用澄清话术。")
 
         history_tail = request.conversation_history[-1] if request.conversation_history else ""
         if history_tail and history_tail != request.user_message:

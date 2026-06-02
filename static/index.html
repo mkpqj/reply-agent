@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Agent 中台指挥台</title>
+    <title>小红书商家客服 Agent 中台</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -20,7 +20,7 @@
           <p class="eyebrow">XIAOHONGSHU MERCHANT OPS</p>
           <h1>客服 Agent 风险指挥台</h1>
           <p class="subtitle">
-            把自动回复、质检拦截、会话风险和人工接管放进一张可操作的中台视图。
+            把自动回复、质检拦截、会话风险和待处理任务放进一张可操作的中台视图里。
           </p>
         </div>
         <div class="hero-band">
@@ -43,9 +43,7 @@
         <div class="demo-copy">
           <p class="panel-kicker">DEMO ACTIONS</p>
           <h2>一键生成典型客服场景</h2>
-          <p>
-            用这组演示动作快速展示售前、催发货、售后、退换货、价格咨询和高风险升级路径，不需要先手动调接口。
-          </p>
+          <p>可快速演示售前、催发货、售后、退换货、价格咨询和高风险升级路径。</p>
         </div>
         <div class="demo-actions">
           <button class="primary-button" id="seedDemoButton">重置并灌入演示数据</button>
@@ -110,7 +108,7 @@
           <div class="chat-board" id="chatBoard">
             <div class="chat-empty">
               <p>左侧代表模拟客户，右侧代表 Agent。</p>
-              <p>发送一条消息后，这里会像真实聊天窗口一样展示对话气泡。</p>
+              <p>发送一条消息后，这里会像真实聊天窗口一样显示对话气泡。</p>
             </div>
           </div>
 
@@ -132,9 +130,7 @@
           <div class="simulator-copy">
             <p class="panel-kicker">AGENT TRACE</p>
             <h2>本轮推理结果</h2>
-            <p>
-              每次发送后，这里会展示意图识别、知识命中、质检结论和是否自动发送，方便你演示 Agent 的内部链路。
-            </p>
+            <p>这里会展示意图识别、知识命中、质检结论和最终发送状态。</p>
           </div>
           <div class="sim-result" id="simulatorResult">
             <p class="empty-state">发送后，这里会显示本轮 Agent 的识别结果、回复内容和质检结论。</p>
@@ -155,7 +151,7 @@
           <div class="kb-layout">
             <div class="kb-import">
               <p class="conversation-preview">
-                当前先支持上传 `CSV` 文件。表头需要包含：
+                当前支持上传 `CSV` 文件，表头需包含：
                 `id,kb_type,shop_id,product_id,intent_scope,title,content`
               </p>
               <form id="kbImportForm" class="config-form">
@@ -194,21 +190,37 @@
               <p class="panel-kicker">FOLLOW-UP QUEUE</p>
               <h2>待跟进队列</h2>
             </div>
-            <button class="ghost-button" id="refreshQueueButton">刷新队列</button>
+            <div class="filter-row">
+              <button class="ghost-button" id="refreshQueueButton">刷新队列</button>
+            </div>
           </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>任务</th>
-                  <th>优先级</th>
-                  <th>状态</th>
-                  <th>原因</th>
-                  <th>截止</th>
-                </tr>
-              </thead>
-              <tbody id="queueTableBody"></tbody>
-            </table>
+          <div class="queue-workspace">
+            <div class="queue-list-pane">
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>任务</th>
+                      <th>优先级</th>
+                      <th>状态</th>
+                      <th>原因</th>
+                      <th>客户消息</th>
+                      <th>截止</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="queueTableBody"></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="queue-detail-pane">
+              <div class="panel-kicker">FOLLOW-UP DETAIL</div>
+              <h3 class="queue-detail-title">待跟进任务详情</h3>
+              <div id="followUpDetail" class="detail-card">
+                <p class="empty-state">点击左侧待处理队列中的任务，这里会显示该任务的原因、触发消息、建议回复和质检意见。</p>
+              </div>
+              <p class="inline-hint" id="followUpHint"></p>
+            </div>
           </div>
         </div>
 
@@ -291,4 +303,4 @@
     </main>
     <script src="/static/app.js"></script>
   </body>
-  </html>
+</html>
