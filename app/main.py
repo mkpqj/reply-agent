@@ -6,6 +6,7 @@ import json
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
+from fastapi.responses import JSONResponse
 from fastapi.responses import StreamingResponse
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -37,6 +38,7 @@ from app.models.schemas import (
 from app.services.demo import DemoService
 from app.services.intent import IntentService
 from app.services.knowledge_base import KnowledgeBaseService
+from app.services.llm_gateway import LlmUnavailableError, require_llm_runtime
 from app.services.orchestrator import ConversationOrchestrator
 from app.services.quality import QualityService
 from app.services.reply import ReplyService
@@ -82,6 +84,11 @@ app = FastAPI(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
+@app.exception_handler(LlmUnavailableError)
+async def llm_unavailable_handler(_: object, exc: LlmUnavailableError):
+    return JSONResponse(status_code=503, content={"detail": str(exc)})
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -104,6 +111,8 @@ async def receive_channel_event(request: ChannelEventRequest) -> ProcessedEventR
 
 @app.post("/api/channel/xiaohongshu/events/stream")
 async def receive_channel_event_stream(request: ChannelEventRequest):
+    require_llm_runtime(store.get_system_config())
+
     async def event_generator():
         user_event = ChatStreamEvent(
             type="user_message",
@@ -204,6 +213,7 @@ def check_reply(request: ReplyCheckRequest):
 
 @app.post("/internal/agent/trace-preview", response_model=AgentTracePreviewResponse)
 async def preview_agent_trace(request: AgentTracePreviewRequest) -> AgentTracePreviewResponse:
+    require_llm_runtime(store.get_system_config())
     result = await orchestrator.multi_agent_runtime.run(
         request=request,
         conversation_id=request.conversation_id or "trace_preview",

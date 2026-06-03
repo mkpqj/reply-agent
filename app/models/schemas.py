@@ -80,7 +80,7 @@ class ReplyDraft(BaseModel):
     prompt_template: str
     cited_knowledge_ids: list[str]
     risk_notes: list[str]
-    model_name: str = "template-llm-mvp"
+    model_name: str = "llm-required"
 
 
 class QualityIssue(BaseModel):
@@ -205,8 +205,9 @@ class SystemConfig(BaseModel):
     quality_block_on_sensitive_missing_kb: bool = True
     prompts: dict[str, PromptTemplateConfig]
     promise_risk_patterns: list[str]
-    llm_enabled: bool = False
+    llm_enabled: bool = True
     llm_model: str = "gpt-4.1-mini"
+    llm_api_key_configured: bool = False
 
 
 class UpdateSystemConfigRequest(BaseModel):

@@ -86,7 +86,7 @@ flowchart LR
 
 1. **单体式 MVP 架构**：后端、页面、规则、知识库导入都在一个 FastAPI 工程里，便于本地演示和快速验证。
 2. **编排式处理链路**：所有消息统一进入 `ConversationOrchestrator`，依次完成识别、检索、生成、质检、打标和入队。
-3. **规则优先，模型可选增强**：默认可不依赖真实大模型运行；只有在配置了 `LLM_API_KEY` 且后台开启开关时才走模型生成。
+3. **LLM required, rules assisted**: The reply pipeline requires `LLM_API_KEY`; rules, retrieval, and quality checks assist the model before and after generation, and no longer provide a no-model fallback.
 4. **数据与运营一体化**：会话明细、待跟进任务、系统配置、知识库导入都可在同一套本地中台界面中完成。
 
 ---
@@ -246,12 +246,11 @@ reply-agent/
 
 ### reply.py + llm_gateway.py - 回复生成与模型网关
 
-`app/services/reply.py` 负责按意图组装回复逻辑，`app/services/llm_gateway.py` 负责可选的大模型调用。
+`app/services/reply.py` builds the reply prompt by intent, and `app/services/llm_gateway.py` performs the required LLM call.
 
-项目当前支持两种模式：
+The project now requires LLM mode:
 
-- **模板模式**：默认模式，不依赖外部模型也可以运行完整流程
-- **LLM 模式**：在系统配置中开启 `llm_enabled`，且本地存在 `LLM_API_KEY` 时，调用兼容 OpenAI Chat Completions 的模型生成回复
+- `llm_enabled` must be enabled in system config, and `LLM_API_KEY` must be configured locally before replies can be generated.
 
 模型请求中会拼入：
 
@@ -413,7 +412,7 @@ ConversationOrchestrator
 | 策略模式 | `config.py` 中的意图 Prompt 与风险规则 | 不同意图走不同回复约束与风控逻辑 |
 | 仓储模式 | `AgentStore` | 统一封装 SQLite 数据访问与聚合查询 |
 | 管道式处理 | 消息处理主链路 | 识别、检索、生成、质检、打标按顺序推进 |
-| 渐进增强 | `ReplyService` + `LlmGateway` | 默认模板可运行，配置模型后再启用生成增强 |
+| LLM required | `ReplyService` + `LlmGateway` | Message processing is unavailable without `LLM_API_KEY` |
 
 ---
 
@@ -437,7 +436,7 @@ LLM_MODEL=gpt-4.1-mini
 
 说明：
 
-- 不填写 `LLM_API_KEY` 也可以运行，系统会自动退回模板模式
+- `LLM_API_KEY` is required; without it, message processing and Agent Trace APIs return unavailable
 - 如果你接的是兼容 OpenAI Chat Completions 的第三方模型，也可以改 `LLM_BASE_URL`
 - 模型名会在页面的 `SYSTEM CONFIG` 中继续可调
 
@@ -530,7 +529,7 @@ python -m uvicorn app.main:app --reload
 
 - 这是一个强调可运行、可演示、可观察的 MVP，适合本地展示客服 Agent 中台的完整处理闭环。
 - 当前意图识别、知识检索和质检以规则与轻量逻辑为主，优先保证链路清晰和风险可控。
-- 大模型接入已经预留，但属于可选增强；没有 API Key 时系统仍可完整工作。
+- LLM access is required; without an API Key, the system cannot process customer messages normally.
 - 前端控制台已经具备较完整的运营视角，不只是“测试接口页”，而是能真实演示会话、风险和任务流转。
 - 存储层采用 SQLite，适合单机验证；如果进入多人协作或生产场景，建议拆分数据库、检索服务和配置中心。
 - 页面中对话模拟使用流式返回，能更直观看到 Agent 回复过程，但底层仍然是一次完整的后端编排执行。

@@ -32,6 +32,7 @@ from app.services.intent import IntentService
 from app.services.intent import is_greeting_message
 from app.services.knowledge_base import KnowledgeBaseService
 from app.services.quality import QualityService
+from app.services.llm_gateway import require_llm_runtime
 from app.services.reply import ReplyService
 from app.services.tagging import TaggingService
 
@@ -84,7 +85,6 @@ class CustomerSupportGraphState(TypedDict, total=False):
     risk_level: str
     follow_up_reason: str | None
     follow_up_priority: str | None
-    llm_tool_planner_failed: bool
     agent_plan: list[AgentPlanStep]
     agent_trace: list[AgentTraceEvent]
     retrieval_metadata: dict[str, Any]
@@ -516,32 +516,9 @@ class LangGraphToolAgent:
         if not state.get("agent_plan"):
             return self._plan_first_tool(state)
 
-        tool_call = self._next_deterministic_tool_call(state)
+        tool_call = self._next_tool_call(state)
         if tool_call is None:
             return {"messages": [AIMessage(content="tool agent completed")]}
-
-        if self._llm_enabled(state):
-            try:
-                message = await self._llm_tool_call(state, config)
-            except Exception as exc:
-                trace = list(state.get("agent_trace", []))
-                trace.append(
-                    AgentTraceEvent(
-                        step_id="llm_tool_planner",
-                        agent=self.name,
-                        action="fallback_to_deterministic_planner",
-                        output=f"LLM tool planner failed: {exc.__class__.__name__}",
-                        metadata={"error": str(exc)},
-                    )
-                )
-                return {
-                    "llm_tool_planner_failed": True,
-                    "agent_trace": trace,
-                    "messages": [AIMessage(content="", tool_calls=[tool_call])],
-                }
-            else:
-                if isinstance(message, AIMessage) and message.tool_calls:
-                    return {"messages": [message]}
 
         return {"messages": [AIMessage(content="", tool_calls=[tool_call])]}
 
@@ -577,7 +554,8 @@ class LangGraphToolAgent:
                     "framework": "langgraph",
                     "available_tools": self.tool_names,
                     "planned_tools": TOOL_ORDER,
-                    "llm_tool_planner_enabled": self._llm_enabled(state),
+                    "llm_tool_planner_enabled": False,
+                    "planner": "deterministic_tool_order",
                 },
             )
         )
@@ -591,7 +569,7 @@ class LangGraphToolAgent:
             "messages": [AIMessage(content="", tool_calls=[first_call])],
         }
 
-    def _next_deterministic_tool_call(self, state: CustomerSupportGraphState) -> dict[str, Any] | None:
+    def _next_tool_call(self, state: CustomerSupportGraphState) -> dict[str, Any] | None:
         request = state["request"]
         runtime_config = state.get("runtime_config", {})
         if not state.get("intent_result"):
@@ -622,6 +600,7 @@ class LangGraphToolAgent:
         return None
 
     async def _llm_tool_call(self, state: CustomerSupportGraphState, config: RunnableConfig) -> AIMessage:
+        require_llm_runtime(state.get("runtime_config", {}))
         model = ChatOpenAI(
             api_key=LLM_API_KEY,
             base_url=LLM_BASE_URL,
@@ -631,13 +610,6 @@ class LangGraphToolAgent:
         messages = [SystemMessage(content=self._system_prompt()), *state["messages"]]
         response = await model.ainvoke(messages, config)
         return response
-
-    def _llm_enabled(self, state: CustomerSupportGraphState) -> bool:
-        return (
-            bool(state.get("runtime_config", {}).get("llm_enabled"))
-            and bool(LLM_API_KEY)
-            and not bool(state.get("llm_tool_planner_failed"))
-        )
 
     def _build_tool_call(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         return {

@@ -479,7 +479,12 @@ async function loadConfig() {
   document.getElementById("qualityBlockSwitch").checked = config.quality_block_on_sensitive_missing_kb;
   document.getElementById("promisePatterns").value = config.promise_risk_patterns.join("\n");
   document.getElementById("autoReplySwitchText").textContent = config.auto_reply_enabled ? "已开启" : "已关闭";
-  document.getElementById("chatModelStatus").textContent = config.llm_enabled ? `LLM: ${config.llm_model}` : "模板模式";
+  document.getElementById("chatModelStatus").textContent = config.llm_api_key_configured
+    ? `LLM: ${config.llm_model}`
+    : "LLM_API_KEY 未配置";
+  document.getElementById("configHint").textContent = config.llm_api_key_configured
+    ? ""
+    : "未配置 LLM_API_KEY，Agent 暂不可用。";
 }
 
 async function loadConversations() {
@@ -627,8 +632,22 @@ async function sendSimulatedMessage(event) {
   });
 
   if (!response.ok || !response.body) {
+    let message = "流式请求失败，请稍后重试。";
+    try {
+      const errorPayload = await response.json();
+      message = errorPayload.detail || message;
+    } catch (_) {
+      // Keep the default message for non-JSON failures.
+    }
     document.getElementById("simulatorResult").innerHTML =
-      '<p class="empty-state">流式请求失败，请稍后重试。</p>';
+      `<p class="empty-state">${escapeHtml(message)}</p>`;
+    const agentMessage = state.chatMessages[state.chatMessages.length - 1];
+    if (agentMessage?.role === "agent") {
+      agentMessage.content = message;
+      agentMessage.meta = "Agent 不可用";
+      agentMessage.pending = false;
+      renderChatBoard(null, state.latestSimulation);
+    }
     return;
   }
 

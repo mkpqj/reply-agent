@@ -7,9 +7,20 @@ import httpx
 from app.core.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
 
 
+class LlmUnavailableError(RuntimeError):
+    """Raised when the required LLM runtime is not available."""
+
+
+def require_llm_runtime(runtime_config: dict[str, Any] | None = None) -> None:
+    if not LLM_API_KEY.strip():
+        raise LlmUnavailableError("LLM_API_KEY is required. Configure it before using the agent.")
+    if not bool((runtime_config or {}).get("llm_enabled", True)):
+        raise LlmUnavailableError("LLM usage is disabled in system config. Enable it before using the agent.")
+
+
 class LlmGateway:
     def is_enabled(self, runtime_config: dict[str, Any] | None = None) -> bool:
-        config_enabled = bool((runtime_config or {}).get("llm_enabled", False))
+        config_enabled = bool((runtime_config or {}).get("llm_enabled", True))
         return config_enabled and bool(LLM_API_KEY)
 
     async def generate_reply(
@@ -21,9 +32,8 @@ class LlmGateway:
         knowledge_context: list[dict[str, Any]],
         conversation_history: list[str],
         runtime_config: dict[str, Any] | None = None,
-    ) -> str | None:
-        if not self.is_enabled(runtime_config):
-            return None
+    ) -> str:
+        require_llm_runtime(runtime_config)
 
         model = (runtime_config or {}).get("llm_model", LLM_MODEL)
         knowledge_text = "\n".join(
@@ -66,7 +76,7 @@ class LlmGateway:
                 response = await client.post(f"{LLM_BASE_URL}/chat/completions", headers=headers, json=payload)
                 response.raise_for_status()
                 data = response.json()
-        except httpx.HTTPError:
-            return None
+        except httpx.HTTPError as exc:
+            raise LlmUnavailableError(f"LLM request failed: {exc.__class__.__name__}") from exc
 
         return data["choices"][0]["message"]["content"].strip()

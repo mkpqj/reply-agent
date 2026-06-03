@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app.core.database import get_connection, init_db
-from app.core.config import INTENT_PROMPTS, PROMISE_RISK_PATTERNS
+from app.core.config import INTENT_PROMPTS, LLM_API_KEY, PROMISE_RISK_PATTERNS
 
 
 def now_iso() -> str:
@@ -54,7 +54,7 @@ class AgentStore:
             "quality_block_on_sensitive_missing_kb": True,
             "prompts": INTENT_PROMPTS,
             "promise_risk_patterns": PROMISE_RISK_PATTERNS,
-            "llm_enabled": False,
+            "llm_enabled": True,
             "llm_model": "gpt-4.1-mini",
         }
 
@@ -715,18 +715,27 @@ class AgentStore:
         with get_connection() as conn:
             row = conn.execute("SELECT value_json FROM system_configs WHERE key = ?", ("agent_settings",)).fetchone()
         config = json.loads(row["value_json"]) if row else {}
-        return {**self._default_config(), **config}
+        merged = {**self._default_config(), **config}
+        merged["llm_api_key_configured"] = bool(LLM_API_KEY.strip())
+        return merged
 
     def update_system_config(self, patch: dict[str, Any]) -> dict[str, Any]:
         self.ensure_default_config()
         config = self.get_system_config()
-        config.update({key: value for key, value in patch.items() if value is not None})
+        config.update(
+            {
+                key: value
+                for key, value in patch.items()
+                if value is not None and key != "llm_api_key_configured"
+            }
+        )
+        config.pop("llm_api_key_configured", None)
         with get_connection() as conn:
             conn.execute(
                 "UPDATE system_configs SET value_json = ?, updated_at = ? WHERE key = ?",
                 (json.dumps(config, ensure_ascii=False), now_iso(), "agent_settings"),
             )
-        return config
+        return self.get_system_config()
 
     def list_follow_up_tasks(self, status: str | None = None) -> list[dict[str, Any]]:
         query = """

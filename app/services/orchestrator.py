@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.models.schemas import ChannelEventRequest, ProcessedEventResponse
 from app.services.intent import IntentService
 from app.services.knowledge_base import KnowledgeBaseService
+from app.services.llm_gateway import require_llm_runtime
 from app.services.multi_agent import MultiAgentRuntime
 from app.services.quality import QualityService
 from app.services.reply import ReplyService
@@ -31,6 +32,7 @@ class ConversationOrchestrator:
 
     async def process_channel_event(self, request: ChannelEventRequest) -> ProcessedEventResponse:
         runtime_config = self.store.get_system_config()
+        require_llm_runtime(runtime_config)
         conversation = self.store.ensure_conversation(request.conversation_id, request.shop_id, request.user_id)
         message_id = self.store.add_message(
             conversation_id=conversation["id"],

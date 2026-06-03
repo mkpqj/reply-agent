@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 data/agent.db
 .env
+data/*.log
+data/kb_vector_index.json
+tmp_*.py
