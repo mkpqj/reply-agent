@@ -12,6 +12,8 @@ class LlmUnavailableError(RuntimeError):
 
 
 def require_llm_runtime(runtime_config: dict[str, Any] | None = None) -> None:
+    # 当前 MVP 将 LLM 视为线上 Agent 的必需运行时；如果未配置或被关闭，
+    # 在入口处快速失败，避免后续流程产生半成品回复。
     if not LLM_API_KEY.strip():
         raise LlmUnavailableError("LLM_API_KEY is required. Configure it before using the agent.")
     if not bool((runtime_config or {}).get("llm_enabled", True)):
@@ -66,6 +68,7 @@ class LlmGateway:
             "temperature": 0.3,
         }
 
+        # HTTP 细节集中在网关层处理，上层回复服务只需要关心业务输入和领域错误。
         headers = {
             "Authorization": f"Bearer {LLM_API_KEY}",
             "Content-Type": "application/json",

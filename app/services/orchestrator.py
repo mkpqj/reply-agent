@@ -34,6 +34,8 @@ class ConversationOrchestrator:
         runtime_config = self.store.get_system_config()
         require_llm_runtime(runtime_config)
         conversation = self.store.ensure_conversation(request.conversation_id, request.shop_id, request.user_id)
+        # 先落库用户消息，再调用 Agent；这样意图、知识命中、回复、
+        # 质检和待跟进任务都能回溯到触发它们的那一轮对话。
         message_id = self.store.add_message(
             conversation_id=conversation["id"],
             sender_type="user",
@@ -62,6 +64,8 @@ class ConversationOrchestrator:
 
         follow_up_task_id = None
         if agent_result.follow_up_reason and agent_result.follow_up_priority:
+            # 只有在多 Agent 图完成最终投递决策后才创建待跟进任务，
+            # 保证人工队列和最终回复状态保持一致。
             follow_up_task_id = self.store.create_follow_up_task(
                 conversation["id"],
                 message_id,

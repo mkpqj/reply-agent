@@ -14,6 +14,8 @@ class QualityService:
         patterns = runtime_config.get("promise_risk_patterns", PROMISE_RISK_PATTERNS)
         block_missing_kb = runtime_config.get("quality_block_on_sensitive_missing_kb", True)
 
+        # 质检规则是 LLM 生成后的确定性护栏，用来拦截高风险承诺、
+        # 敏感场景缺少知识依据等不适合自动发送的回复。
         for pattern in patterns:
             if pattern in request.draft_reply:
                 issues.append(QualityIssue(type="promise_risk", message=f"回复包含高风险承诺词: {pattern}"))

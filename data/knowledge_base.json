@@ -197,5 +197,239 @@
     "content": "若用户反馈商品破损或少件，应优先引导通过订单售后入口提交照片或视频凭证，再由平台和商家依据证据审核处理。",
     "source_name": "售后取证处理规范",
     "source_url": "https://www.samr.gov.cn/"
+  },
+  {
+    "id": "beauty-serum-ingredients",
+    "kb_type": "商品FAQ",
+    "shop_id": "shop-beauty",
+    "product_id": "sku-serum",
+    "intent_scope": [
+      "售前咨询"
+    ],
+    "title": "维稳精华成分说明",
+    "content": "这款维稳精华主打保湿与舒缓护理，页面展示的核心成分包括泛醇和透明质酸钠；敏感肌用户建议先做局部试用，具体适用情况以个人肤质为准。",
+    "source_name": "店铺商品资料",
+    "source_url": null
+  },
+  {
+    "id": "beauty-serum-usage",
+    "kb_type": "商品FAQ",
+    "shop_id": "shop-beauty",
+    "product_id": "sku-serum",
+    "intent_scope": [
+      "售前咨询"
+    ],
+    "title": "维稳精华使用建议",
+    "content": "洁面和爽肤水后取适量精华轻拍吸收，再叠加乳液或面霜；早晚均可使用，首次叠加酸类或视黄醇产品时建议降低频次观察。",
+    "source_name": "店铺商品资料",
+    "source_url": null
+  },
+  {
+    "id": "beauty-sunscreen-spf",
+    "kb_type": "商品FAQ",
+    "shop_id": "shop-beauty",
+    "product_id": "sku-sunscreen",
+    "intent_scope": [
+      "售前咨询"
+    ],
+    "title": "防晒乳防护信息",
+    "content": "清透防晒乳的防护标识、适用场景和使用量请以商品详情页为准；户外长时间活动建议按需补涂，不应承诺一次涂抹全天有效。",
+    "source_name": "店铺商品资料",
+    "source_url": null
+  },
+  {
+    "id": "beauty-shipping-cold-chain",
+    "kb_type": "物流规则",
+    "shop_id": "shop-beauty",
+    "product_id": "",
+    "intent_scope": [
+      "催发货"
+    ],
+    "title": "美妆商品发货说明",
+    "content": "现货美妆订单通常在付款后 48 小时内安排出库，大促或仓库盘点期间可能顺延；客服只能引导用户查看订单页物流节点，不能承诺具体到达时间。",
+    "source_name": "店铺履约规则",
+    "source_url": null
+  },
+  {
+    "id": "beauty-after-sale-allergy",
+    "kb_type": "售后政策",
+    "shop_id": "shop-beauty",
+    "product_id": "",
+    "intent_scope": [
+      "售后"
+    ],
+    "title": "肤感不适反馈处理",
+    "content": "用户反馈使用后不适时，应先建议停止使用并保留商品、包装和使用记录，再通过订单售后入口提交凭证，由平台和商家依据规则审核处理。",
+    "source_name": "售后处理规范",
+    "source_url": null
+  },
+  {
+    "id": "beauty-price-gift",
+    "kb_type": "商品FAQ",
+    "shop_id": "shop-beauty",
+    "product_id": "sku-serum",
+    "intent_scope": [
+      "价格咨询"
+    ],
+    "title": "赠品与优惠说明",
+    "content": "赠品、满减和优惠券以活动页及下单页实时展示为准；客服不应承诺额外赠品、永久保价或活动结束后补发优惠。",
+    "source_name": "活动说明",
+    "source_url": null
+  },
+  {
+    "id": "home-diffuser-capacity",
+    "kb_type": "商品FAQ",
+    "shop_id": "shop-home",
+    "product_id": "sku-aroma-diffuser",
+    "intent_scope": [
+      "售前咨询"
+    ],
+    "title": "香薰机容量与使用场景",
+    "content": "香薰机水箱容量和适用空间以详情页参数为准，建议加入清水后按说明书滴入少量香薰液；不同空间大小和通风条件会影响香味扩散感受。",
+    "source_name": "店铺商品资料",
+    "source_url": null
+  },
+  {
+    "id": "home-diffuser-maintenance",
+    "kb_type": "商品FAQ",
+    "shop_id": "shop-home",
+    "product_id": "sku-aroma-diffuser",
+    "intent_scope": [
+      "售前咨询"
+    ],
+    "title": "香薰机清洁维护",
+    "content": "建议每次使用后倒掉余水并擦干水箱，定期用软布清理雾化片；请勿整机浸水或使用腐蚀性清洁剂。",
+    "source_name": "店铺商品资料",
+    "source_url": null
+  },
+  {
+    "id": "home-mug-material",
+    "kb_type": "商品FAQ",
+    "shop_id": "shop-home",
+    "product_id": "sku-ceramic-mug",
+    "intent_scope": [
+      "售前咨询"
+    ],
+    "title": "陶瓷杯材质说明",
+    "content": "陶瓷杯材质、容量和是否适用微波炉或洗碗机请以详情页标注为准；手工釉面可能存在轻微纹理差异，不影响正常使用。",
+    "source_name": "店铺商品资料",
+    "source_url": null
+  },
+  {
+    "id": "home-fragile-shipping",
+    "kb_type": "物流规则",
+    "shop_id": "shop-home",
+    "product_id": "",
+    "intent_scope": [
+      "催发货"
+    ],
+    "title": "易碎品包装与物流",
+    "content": "陶瓷杯等易碎品会使用缓冲包装后发出；物流时效以订单页和承运商轨迹为准，遇到破损请保留外箱和商品照片以便售后核实。",
+    "source_name": "店铺履约规则",
+    "source_url": null
+  },
+  {
+    "id": "home-damaged-replacement",
+    "kb_type": "售后政策",
+    "shop_id": "shop-home",
+    "product_id": "",
+    "intent_scope": [
+      "退换货"
+    ],
+    "title": "家居易碎品破损处理",
+    "content": "用户签收后发现破损，应尽快通过订单售后入口提交外包装、面单和商品破损照片；是否补寄、换货或退款以平台及商家审核结果为准。",
+    "source_name": "售后处理规范",
+    "source_url": null
+  },
+  {
+    "id": "home-price-bundle",
+    "kb_type": "商品FAQ",
+    "shop_id": "shop-home",
+    "product_id": "sku-aroma-diffuser",
+    "intent_scope": [
+      "价格咨询"
+    ],
+    "title": "套装活动价格说明",
+    "content": "香薰机套装价、加购价和优惠券叠加规则以下单页实际展示为准；客服不得承诺未展示的折扣或线下补差。",
+    "source_name": "活动说明",
+    "source_url": null
+  },
+  {
+    "id": "sports-yoga-thickness",
+    "kb_type": "商品FAQ",
+    "shop_id": "shop-sports",
+    "product_id": "sku-yoga-mat",
+    "intent_scope": [
+      "售前咨询"
+    ],
+    "title": "瑜伽垫厚度选择",
+    "content": "初学者和膝盖敏感用户可优先关注较厚规格，进阶平衡训练可关注抓地力和稳定性；具体厚度、尺寸和材质以商品详情页参数为准。",
+    "source_name": "店铺商品资料",
+    "source_url": null
+  },
+  {
+    "id": "sports-yoga-smell",
+    "kb_type": "商品FAQ",
+    "shop_id": "shop-sports",
+    "product_id": "sku-yoga-mat",
+    "intent_scope": [
+      "售前咨询"
+    ],
+    "title": "瑜伽垫气味说明",
+    "content": "新垫开封后可能有材料本身气味，建议放在阴凉通风处散味后使用；不建议暴晒或使用强腐蚀清洁剂清洗。",
+    "source_name": "店铺商品资料",
+    "source_url": null
+  },
+  {
+    "id": "sports-running-belt-size",
+    "kb_type": "商品FAQ",
+    "shop_id": "shop-sports",
+    "product_id": "sku-running-belt",
+    "intent_scope": [
+      "售前咨询"
+    ],
+    "title": "跑步腰包尺码建议",
+    "content": "跑步腰包腰围调节范围和手机兼容尺寸以详情页参数为准；如果用户介于两个范围，建议结合穿着厚度和佩戴松紧偏好选择。",
+    "source_name": "店铺商品资料",
+    "source_url": null
+  },
+  {
+    "id": "sports-shipping-presale",
+    "kb_type": "物流规则",
+    "shop_id": "shop-sports",
+    "product_id": "",
+    "intent_scope": [
+      "催发货"
+    ],
+    "title": "运动商品预售发货",
+    "content": "预售运动商品按详情页标注批次陆续发出，客服可说明当前订单状态，但不能额外承诺提前发货或指定到达日期。",
+    "source_name": "店铺履约规则",
+    "source_url": null
+  },
+  {
+    "id": "sports-after-sale-size",
+    "kb_type": "售后政策",
+    "shop_id": "shop-sports",
+    "product_id": "",
+    "intent_scope": [
+      "退换货"
+    ],
+    "title": "尺码不合适退换处理",
+    "content": "尺码不合适可在符合平台规则且商品完好、配件齐全的前提下申请退换货；具体是否通过以售后入口审核结果为准。",
+    "source_name": "售后处理规范",
+    "source_url": null
+  },
+  {
+    "id": "sports-price-member",
+    "kb_type": "商品FAQ",
+    "shop_id": "shop-sports",
+    "product_id": "sku-running-belt",
+    "intent_scope": [
+      "价格咨询"
+    ],
+    "title": "会员券与活动价说明",
+    "content": "会员券、限时折扣和跨店满减是否可叠加，以下单页实时计算为准；客服不承诺活动后继续保留同价或人工补差。",
+    "source_name": "活动说明",
+    "source_url": null
   }
 ]

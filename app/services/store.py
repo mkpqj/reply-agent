@@ -15,6 +15,8 @@ def now_iso() -> str:
 
 class AgentStore:
     def _find_follow_up_source_message(self, conn, conversation_id: str, task_created_at: str, message_id: str | None):
+        # 旧任务可能没有 message_id，这里尽量定位到最接近的用户消息，
+        # 方便客服看到触发人工跟进的原始对话。
         if message_id:
             direct = conn.execute(
                 "SELECT * FROM messages WHERE id = ?",
@@ -348,6 +350,8 @@ class AgentStore:
                     row["conversation_id"],
                     row["message_id"] if row["message_id"] is not None else row["id"],
                 )
+                # 没有关联消息的任务按唯一任务处理；有关联消息时，同一会话同一消息
+                # 只保留最新的 open/claimed 任务。
                 if dedupe_key not in keep_by_message:
                     keep_by_message[dedupe_key] = row["id"]
                     continue
@@ -373,6 +377,8 @@ class AgentStore:
             }
 
             for task in tasks:
+                # 回填时优先选任务创建前最近的一条用户消息；如果已被其他任务占用，
+                # 再退而选择时间最接近且未使用的消息。
                 candidate = conn.execute(
                     """
                     SELECT id
@@ -469,6 +475,8 @@ class AgentStore:
                 if not needs_follow_up:
                     continue
 
+                # 这条修复路径保持保守：只有持久化的回复状态已经证明需要人工复核时，
+                # 才补建待跟进任务。
                 reason_parts: list[str] = []
                 if candidate["confidence"] < confidence_threshold:
                     reason_parts.append("低置信度识别")

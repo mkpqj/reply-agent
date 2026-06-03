@@ -49,6 +49,7 @@ class KnowledgeBaseService:
         try:
             indexed_count = await self.vector_index.rebuild(documents)
         except (httpx.HTTPError, KeyError, ValueError):
+            # 向量能力是增强项，重建失败不能阻断关键词检索或 CSV 导入流程。
             indexed_count = 0
         return {
             "enabled": self.vector_index.embedding_gateway.is_enabled(),
@@ -71,6 +72,7 @@ class KnowledgeBaseService:
             raise ValueError(f"CSV missing required columns: {', '.join(sorted(missing))}")
 
         existing = load_knowledge_base()
+        existing_ids = {doc["id"] for doc in existing}
         imported_count = 0
         skipped_count = 0
         sample_ids: list[str] = []
@@ -82,6 +84,10 @@ class KnowledgeBaseService:
 
             intent_scope = [item.strip() for item in row["intent_scope"].split(",") if item.strip()]
             document_id = row.get("id") or f"kb_{uuid.uuid4().hex[:12]}"
+            if document_id in existing_ids:
+                skipped_count += 1
+                continue
+
             doc = {
                 "id": document_id,
                 "kb_type": row["kb_type"].strip(),
@@ -94,6 +100,7 @@ class KnowledgeBaseService:
                 "source_url": row.get("source_url", "").strip() or None,
             }
             existing.append(doc)
+            existing_ids.add(document_id)
             imported_count += 1
             if len(sample_ids) < 5:
                 sample_ids.append(document_id)
@@ -111,6 +118,8 @@ class KnowledgeBaseService:
         documents = self._candidate_documents(request)
         lexical_scores = {doc["id"]: self._lexical_score(doc, request) for doc in documents}
         allowed_doc_ids = {doc["id"] for doc in documents}
+        # 向量检索只在已通过业务过滤的候选文档里排序，
+        # 不能绕过店铺、意图或商品边界。
         vector_hits = await self.vector_index.search(all_documents, request.query, allowed_doc_ids=allowed_doc_ids)
         self.last_vector_hit_count = len(vector_hits)
         vector_scores = {hit.doc_id: hit.score for hit in vector_hits}
@@ -120,6 +129,8 @@ class KnowledgeBaseService:
             lexical_score = lexical_scores.get(doc["id"], 0.0)
             vector_score = max(vector_scores.get(doc["id"], 0.0), 0.0)
             policy_score = self._policy_score(doc, request)
+            # 综合关键词命中、语义相似度和业务规则相关性；
+            # 较小的规则分用于保证强约束文档不会被完全淹没。
             score = lexical_score * 0.45 + vector_score * 0.45 + policy_score * 0.10
 
             if score <= 0.12:
@@ -167,6 +178,7 @@ class KnowledgeBaseService:
     def _candidate_documents(self, request: KbSearchRequest) -> list[dict]:
         candidates: list[dict] = []
         for doc in load_knowledge_base():
+            # 先过滤再打分，避免因为语义相似而引用到其他店铺的知识。
             if doc["shop_id"] != request.shop_id:
                 continue
             if doc["intent_scope"] and request.intent not in doc["intent_scope"]:
@@ -218,6 +230,8 @@ class KnowledgeBaseService:
         tokens: set[str] = {token.strip() for token in normalized.split() if token.strip()}
         compact = "".join(normalized.split())
         if compact:
+            # 中文短语常没有空格，补充 2-4 字符 n-gram 可以提高商品名、
+            # 政策词等短文本的命中率。
             tokens.add(compact)
             for size in (2, 3, 4):
                 if len(compact) >= size:

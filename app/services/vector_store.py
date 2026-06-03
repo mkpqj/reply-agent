@@ -45,6 +45,7 @@ class VectorKnowledgeIndex:
         try:
             index = await self._load_or_build(documents)
         except (httpx.HTTPError, KeyError, ValueError):
+            # 远程 embedding 服务或缓存索引不可用时，检索应平滑降级到关键词方案。
             return []
         if not index:
             return []
@@ -75,6 +76,7 @@ class VectorKnowledgeIndex:
             if index.get("signature") == signature and index.get("model") == EMBEDDING_MODEL:
                 return index
 
+        # 签名只覆盖会影响检索结果的字段，避免无关格式变化触发不必要的重建。
         texts = [self._document_text(doc) for doc in documents]
         embeddings = await self.embedding_gateway.embed_texts(texts, model=EMBEDDING_MODEL)
         if not embeddings or len(embeddings) != len(documents):

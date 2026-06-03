@@ -67,6 +67,8 @@ demo_service = DemoService(store=store, orchestrator=orchestrator)
 async def lifespan(_: FastAPI):
     init_db()
     store.ensure_default_config()
+    # 启动时顺手修复历史本地数据，避免表结构升级或演示中断后，
+    # 待跟进队列出现缺失、重复或无法关联消息的任务。
     store.backfill_follow_up_task_message_ids()
     store.restore_missing_follow_up_tasks(
         confidence_threshold=store.get_system_config().get("intent_confidence_threshold", 0.7)
@@ -114,6 +116,8 @@ async def receive_channel_event_stream(request: ChannelEventRequest):
     require_llm_runtime(store.get_system_config())
 
     async def event_generator():
+        # 这里的流式输出主要服务前端体验：先立即回显用户消息，
+        # 等编排器完成真实处理后，再把最终回复切成小段推送。
         user_event = ChatStreamEvent(
             type="user_message",
             content=request.content,
