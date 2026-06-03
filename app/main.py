@@ -21,7 +21,6 @@ from app.models.schemas import (
     DashboardMetrics,
     ConversationDetail,
     ConversationListItem,
-    DemoScenarioRequest,
     IntentRecognizeRequest,
     KnowledgeDocument,
     KnowledgeImportResult,
@@ -35,7 +34,6 @@ from app.models.schemas import (
     SystemConfig,
     UpdateSystemConfigRequest,
 )
-from app.services.demo import DemoService
 from app.services.intent import IntentService
 from app.services.knowledge_base import KnowledgeBaseService
 from app.services.llm_gateway import LlmUnavailableError, require_llm_runtime
@@ -60,7 +58,6 @@ orchestrator = ConversationOrchestrator(
     quality_service=quality_service,
     tagging_service=tagging_service,
 )
-demo_service = DemoService(store=store, orchestrator=orchestrator)
 
 
 @asynccontextmanager
@@ -156,16 +153,6 @@ async def receive_channel_event_stream(request: ChannelEventRequest):
         yield f"data: {done_event.model_dump_json()}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
-
-
-@app.post("/api/demo/seed")
-async def seed_demo_data():
-    return await demo_service.seed_demo_data()
-
-
-@app.post("/api/demo/run", response_model=ProcessedEventResponse)
-async def run_demo_scenario(request: DemoScenarioRequest) -> ProcessedEventResponse:
-    return await demo_service.run_scenario(request)
 
 
 @app.post("/internal/intent/recognize")

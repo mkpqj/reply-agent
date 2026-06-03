@@ -81,18 +81,6 @@ class AgentStore:
                     (json.dumps(merged, ensure_ascii=False), current_time, "agent_settings"),
                 )
 
-    def reset_demo_data(self) -> None:
-        init_db()
-        with get_connection() as conn:
-            conn.execute("DELETE FROM quality_checks")
-            conn.execute("DELETE FROM reply_records")
-            conn.execute("DELETE FROM knowledge_hits")
-            conn.execute("DELETE FROM intent_results")
-            conn.execute("DELETE FROM follow_up_tasks")
-            conn.execute("DELETE FROM conversation_tags")
-            conn.execute("DELETE FROM messages")
-            conn.execute("DELETE FROM conversations")
-
     def ensure_conversation(self, conversation_id: str | None, shop_id: str, user_id: str) -> dict[str, Any]:
         conversation_id = conversation_id or f"conv_{uuid.uuid4().hex[:12]}"
         current_time = now_iso()
@@ -101,10 +89,11 @@ class AgentStore:
             row = conn.execute("SELECT * FROM conversations WHERE id = ?", (conversation_id,)).fetchone()
             if row:
                 conn.execute(
-                    "UPDATE conversations SET last_message_at = ? WHERE id = ?",
-                    (current_time, conversation_id),
+                    "UPDATE conversations SET shop_id = ?, user_id = ?, last_message_at = ? WHERE id = ?",
+                    (shop_id, user_id, current_time, conversation_id),
                 )
-                return dict(row)
+                refreshed = conn.execute("SELECT * FROM conversations WHERE id = ?", (conversation_id,)).fetchone()
+                return dict(refreshed) if refreshed else dict(row)
 
             conn.execute(
                 """

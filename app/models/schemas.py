@@ -32,6 +32,8 @@ class ChannelEventRequest(BaseModel):
 class IntentRecognizeRequest(BaseModel):
     conversation_id: str | None = None
     message: str
+    shop_id: str | None = None
+    product_id: str | None = None
     order_context: OrderContext | None = None
 
 
@@ -219,8 +221,6 @@ class UpdateSystemConfigRequest(BaseModel):
     llm_model: str | None = None
 
 
-class DemoScenarioRequest(BaseModel):
-    scenario: Literal["售前咨询", "催发货", "售后", "退换货", "价格咨询", "混合风险"]
 
 
 class KnowledgeDocument(BaseModel):

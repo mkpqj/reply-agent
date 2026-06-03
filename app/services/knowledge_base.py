@@ -37,6 +37,77 @@ class KnowledgeBaseService:
     def list_documents(self) -> list[KnowledgeDocument]:
         return [KnowledgeDocument(**doc) for doc in load_knowledge_base()]
 
+    def has_product_faq(self, shop_id: str | None, product_id: str | None) -> bool:
+        if not shop_id or not product_id:
+            return False
+        for doc in load_knowledge_base():
+            if doc["shop_id"] != shop_id:
+                continue
+            if doc.get("product_id") != product_id:
+                continue
+            if doc.get("kb_type") == "商品FAQ":
+                return True
+        return False
+
+    def looks_like_product_question(self, shop_id: str | None, product_id: str | None, query: str) -> bool:
+        if not shop_id or not product_id or not query.strip():
+            return False
+
+        request = KbSearchRequest(
+            shop_id=shop_id,
+            intent="售前咨询",
+            query=query,
+            product_id=product_id,
+        )
+        hits = self.search_lexical(request)
+        if hits:
+            return True
+
+        compact_query = "".join(query.split()).lower()
+        if not compact_query:
+            return False
+
+        for doc in load_knowledge_base():
+            if doc["shop_id"] != shop_id:
+                continue
+            if doc.get("product_id") != product_id:
+                continue
+            haystack = f"{doc.get('title', '')}{doc.get('content', '')}".replace(" ", "").lower()
+            if compact_query in haystack:
+                return True
+            for size in (2, 3, 4):
+                if len(compact_query) < size:
+                    continue
+                if any(compact_query[index : index + size] in haystack for index in range(len(compact_query) - size + 1)):
+                    return True
+        return False
+
+    def detect_product_consultation_signal(self, shop_id: str | None, product_id: str | None, query: str) -> dict[str, object]:
+        if not shop_id or not product_id or not query.strip():
+            return {
+                "matched": False,
+                "score": 0.0,
+                "doc_ids": [],
+                "titles": [],
+            }
+
+        request = KbSearchRequest(
+            shop_id=shop_id,
+            intent="鍞墠鍜ㄨ",
+            query=query,
+            product_id=product_id,
+        )
+        hits = self.search_lexical(request)
+        top_hits = hits[:3]
+        top_score = top_hits[0].score if top_hits else 0.0
+
+        return {
+            "matched": bool(top_hits),
+            "score": top_score,
+            "doc_ids": [item.doc_id for item in top_hits],
+            "titles": [item.title for item in top_hits],
+        }
+
     def save_documents(self, documents: list[dict]) -> None:
         Path(KB_PATH).parent.mkdir(parents=True, exist_ok=True)
         with KB_PATH.open("w", encoding="utf-8") as file:

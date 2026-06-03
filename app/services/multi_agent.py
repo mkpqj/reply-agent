@@ -469,14 +469,27 @@ class IntentAgent:
     def run(self, state: CustomerSupportGraphState) -> dict[str, Any]:
         request = state["request"]
         intent_service: IntentService = state["services"]["intent"]
+        kb_service: KnowledgeBaseService = state["services"]["kb"]
         confidence_threshold = state.get("runtime_config", {}).get("intent_confidence_threshold", 0.7)
         result = intent_service.recognize(
             IntentRecognizeRequest(
                 conversation_id=state["conversation_id"],
                 message=request.content,
+                shop_id=request.shop_id,
+                product_id=request.product_id,
                 order_context=request.order_context,
             )
         )
+        if (
+            result.intent == "其他"
+            and not request.order_context
+            and kb_service.has_product_faq(request.shop_id, request.product_id)
+            and kb_service.looks_like_product_question(request.shop_id, request.product_id, request.content)
+        ):
+            result.intent = "售前咨询"
+            result.confidence = max(result.confidence, 0.82)
+            if "命中当前店铺商品知识，按商品咨询处理" not in result.signals:
+                result.signals.append("命中当前店铺商品知识，按商品咨询处理")
         result.needs_human = result.confidence < confidence_threshold
         payload = result.model_dump()
         output = f"intent={result.intent}, confidence={result.confidence}, needs_human={result.needs_human}"

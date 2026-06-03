@@ -521,28 +521,6 @@ async function deleteSelectedConversation() {
   await Promise.all([loadMetrics(), loadQueue(), loadConversations()]);
 }
 
-async function seedDemoData() {
-  await fetchJson("/api/demo/seed", { method: "POST" });
-  document.getElementById("demoHint").textContent = "演示数据已重置并灌入。";
-  state.selectedConversationId = null;
-  state.latestSimulation = null;
-  resetFollowUpDetail();
-  await Promise.all([loadMetrics(), loadQueue(), loadConversations()]);
-}
-
-async function runDemoScenario(scenario) {
-  await fetchJson("/api/demo/run", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ scenario }),
-  });
-  document.getElementById("demoHint").textContent = `已生成场景：${scenario}`;
-  state.selectedConversationId = null;
-  state.latestSimulation = null;
-  resetFollowUpDetail();
-  await Promise.all([loadMetrics(), loadQueue(), loadConversations()]);
-}
-
 async function importKnowledgeBase(event) {
   event.preventDefault();
   const input = document.getElementById("kbFileInput");
@@ -569,16 +547,6 @@ async function importKnowledgeBase(event) {
     `导入成功：新增 ${result.imported_count} 条，跳过 ${result.skipped_count} 条，当前共 ${result.total_count} 条。`;
   input.value = "";
   await loadKnowledgeBase();
-}
-
-function fillRiskExample() {
-  document.getElementById("simOrderStatus").value = "paid";
-  document.getElementById("simMessage").value = "怎么还没发货，明天必须到，不然我要投诉平台，还要给我补偿。";
-}
-
-function fillPresaleExample() {
-  document.getElementById("simOrderStatus").value = "";
-  document.getElementById("simMessage").value = "这条围巾是什么材质，厚不厚，适合冬天戴吗？";
 }
 
 async function sendSimulatedMessage(event) {
@@ -745,9 +713,6 @@ function bindEvents() {
   document.getElementById("configForm").addEventListener("submit", saveConfig);
   document.getElementById("kbImportForm").addEventListener("submit", importKnowledgeBase);
   document.getElementById("simulatorForm").addEventListener("submit", sendSimulatedMessage);
-  document.getElementById("seedDemoButton").addEventListener("click", seedDemoData);
-  document.getElementById("fillRiskExampleButton").addEventListener("click", fillRiskExample);
-  document.getElementById("fillPresaleExampleButton").addEventListener("click", fillPresaleExample);
   getQueueBody().addEventListener("click", (event) => {
     const row = event.target.closest(".queue-row");
     const button = event.target.closest(".queue-inline-button");
@@ -758,9 +723,6 @@ function bindEvents() {
     if (row?.dataset.taskId) {
       loadFollowUpDetail(row.dataset.taskId);
     }
-  });
-  document.querySelectorAll(".demo-button").forEach((button) => {
-    button.addEventListener("click", () => runDemoScenario(button.dataset.scenario));
   });
 }
 
