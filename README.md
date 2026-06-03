@@ -1,6 +1,6 @@
-# 商家客服 Agent 中台 
+# 商家客服 Agent 中台
 
-> 一个面向商家客服场景的本地可运行 Agent 中台示例，围绕“意图识别 -> 知识检索 -> 回复生成 -> 质检拦截 -> 待跟进流转”构建完整闭环，并提供可直接演示的 Web 控制台。
+> 一个面向商家客服场景的本地可运行 Agent 中台示例，围绕“意图识别 -> 知识检索 -> 回复生成 -> 质量校验 -> 人工跟进”构建完整闭环，并提供可直接演示的 Web 控制台。
 
 ---
 
@@ -13,11 +13,13 @@
 - [核心模块详解](#核心模块详解)
   - [main.py - FastAPI 入口与中台接口](#mainpy---fastapi-入口与中台接口)
   - [orchestrator.py - 会话编排主链路](#orchestratorpy---会话编排主链路)
+  - [multi_agent.py - 多 Agent 工作流](#multi_agentpy---多-agent-工作流)
   - [intent.py - 意图识别服务](#intentpy---意图识别服务)
   - [knowledge_base.py - 知识库检索与导入](#knowledge_basepy---知识库检索与导入)
+  - [vector_store.py + embedding_gateway.py - 轻量 RAG 向量层](#vector_storepy--embedding_gatewaypy---轻量-rag-向量层)
   - [reply.py + llm_gateway.py - 回复生成与模型网关](#replypy--llm_gatewaypy---回复生成与模型网关)
   - [quality.py - 回复质检服务](#qualitypy---回复质检服务)
-  - [tagging.py - 标签与任务升级策略](#taggingpy---标签与任务升级策略)
+  - [tagging.py - 标签与升级策略](#taggingpy---标签与升级策略)
   - [store.py - 会话、任务与配置存储](#storepy---会话任务与配置存储)
   - [static/index.html + app.js - 可视化运营控制台](#staticindexhtml--appjs---可视化运营控制台)
 - [数据流全景](#数据流全景)
@@ -26,40 +28,45 @@
 - [主要接口](#主要接口)
 - [当前实现说明](#当前实现说明)
 
-
+---
 
 ## 项目概览
 
-这个项目实现了一套面向商家客服场景的 Agent 中台。它不是一个只会“自动回复”的聊天机器人，而是一套强调可控、可追踪、可接管的客服处理链路。
+这个项目实现了一套面向商家客服场景的 Agent 中台。它不是一个只负责“直接回复用户”的聊天接口，而是一条具备业务约束、知识约束、质量校验和人工兜底能力的客服处理链路。
 
-![image-20260603003801344](README.assets/image-20260603003801344.png)
+![控制台截图 1](README.assets/image-20260603003801344.png)
 
-![image-20260603003839614](README.assets/image-20260603003839614.png)
+![控制台截图 2](README.assets/image-20260603003839614.png)
 
-![image-20260603003905566](README.assets/image-20260603003905566.png)
+![控制台截图 3](README.assets/image-20260603003905566.png)
 
-![image-20260603003924311](README.assets/image-20260603003924311.png)
+![控制台截图 4](README.assets/image-20260603003924311.png)
 
 当前项目覆盖的核心能力包括：
 
 | 能力 | 说明 |
 |------|------|
 | 意图识别 | 识别售前咨询、催发货、售后、退换货、价格咨询、其他等场景 |
-| 知识检索 | 按商品 FAQ、物流规则、售后政策等知识源检索命中内容 |
-| 回复生成 | 基于意图、历史上下文和知识命中生成草稿回复 |
-| 风险质检 | 拦截承诺性表达、敏感场景乱答、知识缺失时误发等问题 |
-| 标签体系 | 自动打上低置信度识别、知识未命中、高风险等标签 |
-| 待跟进队列 | 对高风险或需人工接管的会话生成待处理任务 |
+| 多 Agent 编排 | 基于 LangGraph Supervisor 流程编排多个角色 Agent 完成客服处理 |
+| 知识检索 | 按店铺、商品、意图范围检索 FAQ、物流规则、售后政策等知识 |
+| 轻量 RAG | 支持关键词检索 + 向量相似度融合召回，具备本地向量索引重建能力 |
+| 回复生成 | 基于意图、历史上下文、知识命中和运行时策略生成客服回复 |
+| 风险质检 | 拦截承诺性表达、敏感场景乱答、无知识支撑自动回复等风险 |
+| 标签体系 | 自动打上低置信度识别、知识未命中、高风险会话、情绪激动等标签 |
+| 人工跟进 | 对需升级会话自动创建 follow-up task，支持领取、处理、人工回复 |
 | 会话留痕 | 消息、意图、知识命中、回复、质检、任务全链路入库 |
-| 中台界面 | 提供可视化控制台，支持演示、导入知识、查看队列、调整策略 |
+| 中台界面 | 提供聊天模拟、Agent Trace、知识导入、队列管理、配置中心、会话回放 |
 
-这版界面已经包含你截图里展示的几块核心工作区：
+项目当前同时具备两种“Agent”特征：
 
-- `LIVE CHAT DEMO`：模拟客户发消息，实时观察 Agent 回复和推理结果
-- `KNOWLEDGE BASE`：上传 CSV 并预览当前知识条目
-- `FOLLOW-UP QUEUE`：查看待跟进任务并标记处理完成
-- `SYSTEM CONFIG`：调整自动回复、模型开关、质检阈值和风险词
-- `CONVERSATIONS`：查看近期会话、标签、回复和跟进详情
+1. **工作流式 Agent**：由统一编排层协调识别、检索、生成、质检和交付。
+2. **多角色 Agent**：内部使用 `intent_agent`、`retrieval_agent`、`customer_service_agent`、`quality_agent`、`tagging_agent`、`escalation_agent`、`delivery_agent` 等角色协作完成一次客服处理。
+
+它同时也用到了 **轻量 RAG 思路**：
+
+- 先检索知识，再让回复模块生成内容；
+- 检索层支持关键词匹配和 embedding 向量召回；
+- 但当前仍是本地 MVP，尚未引入更完整的 chunking、rerank 和独立向量数据库。
 
 ---
 
@@ -67,27 +74,34 @@
 
 ```mermaid
 flowchart LR
-    A["模拟客户消息 / 渠道事件"] --> B["FastAPI 接口层"]
+    A["模拟客户消息 / 渠道事件"] --> B["FastAPI 接入层"]
     B --> C["ConversationOrchestrator"]
-    C --> D["IntentService"]
-    C --> E["KnowledgeBaseService"]
-    C --> F["ReplyService"]
-    F --> G["LlmGateway"]
-    C --> H["QualityService"]
-    C --> I["TaggingService"]
-    C --> J["AgentStore"]
-    E --> K["knowledge_base.json / CSV 导入"]
-    J --> L["SQLite agent.db"]
-    B --> M["静态控制台页面"]
-    M --> N["会话模拟 / 指标 / 队列 / 配置 / 知识库预览"]
+    C --> D["MultiAgentRuntime"]
+    D --> E["intent_agent"]
+    D --> F["retrieval_agent"]
+    D --> G["customer_service_agent"]
+    D --> H["quality_agent"]
+    D --> I["tagging_agent"]
+    D --> J["escalation_agent"]
+    D --> K["delivery_agent"]
+    F --> L["KnowledgeBaseService"]
+    L --> M["knowledge_base.json"]
+    L --> N["VectorKnowledgeIndex"]
+    N --> O["kb_vector_index.json"]
+    N --> P["EmbeddingGateway"]
+    G --> Q["LlmGateway"]
+    C --> R["AgentStore"]
+    R --> S["SQLite agent.db"]
+    B --> T["静态控制台"]
 ```
 
 **架构特点：**
 
-1. **单体式 MVP 架构**：后端、页面、规则、知识库导入都在一个 FastAPI 工程里，便于本地演示和快速验证。
-2. **编排式处理链路**：所有消息统一进入 `ConversationOrchestrator`，依次完成识别、检索、生成、质检、打标和入队。
-3. **LLM required, rules assisted**: The reply pipeline requires `LLM_API_KEY`; rules, retrieval, and quality checks assist the model before and after generation, and no longer provide a no-model fallback.
-4. **数据与运营一体化**：会话明细、待跟进任务、系统配置、知识库导入都可在同一套本地中台界面中完成。
+1. **单体式 MVP**：后端、前端、知识库导入、任务队列和配置中心都在一个项目里，适合本地演示和快速迭代。
+2. **Supervisor 多 Agent 流程**：一次客服处理并非单函数调用，而是通过角色 Agent 顺序接力完成。
+3. **先检索后生成**：回复生成明确依赖知识命中结果，避免模型脱离业务规则直接回答敏感问题。
+4. **生成前后双重约束**：生成前用 Prompt 和知识范围约束，生成后再用 `QualityService` 做确定性质检。
+5. **可运营、可审计**：会话详情、任务队列、指标面板、知识导入和系统配置全部可视化。
 
 ---
 
@@ -95,14 +109,17 @@ flowchart LR
 
 | 层级 | 技术 | 说明 |
 |------|------|------|
-| 后端框架 | FastAPI | 提供 API、流式事件接口和静态页面承载 |
-| 数据校验 | Pydantic | 统一请求、响应和内部数据模型 |
-| 本地存储 | SQLite | 存储会话、消息、回复、质检、任务和系统配置 |
-| 知识存储 | JSON + CSV | 知识库以 JSON 落盘，支持 CSV 增量导入 |
-| 前端 | HTML + CSS + Vanilla JS | 构建中台演示控制台，无额外前端工程 |
-| 模型调用 | OpenAI 兼容 Chat Completions | 通过 `LLM_BASE_URL` + `LLM_API_KEY` 接入兼容模型 |
-| HTTP 客户端 | httpx | 异步调用外部 LLM 接口 |
-| 运行环境 | Python 3.10+ | 适合本地开发、演示和快速验证 |
+| 后端框架 | FastAPI | 提供 API、流式接口、静态页面承载 |
+| Agent 编排 | LangGraph | 构建 supervisor 多角色 Agent 工作流 |
+| LLM 抽象 | langchain-core / langchain-openai | 支撑消息模型、图节点与 OpenAI 兼容调用 |
+| 数据校验 | Pydantic | 统一请求、响应与内部数据模型 |
+| 模型调用 | OpenAI 兼容 Chat Completions | 回复生成依赖外部 LLM 服务 |
+| Embedding | OpenAI 兼容 Embeddings API | 用于轻量向量索引构建与语义检索 |
+| 本地存储 | SQLite | 存储会话、消息、回复、质检、任务和配置 |
+| 知识存储 | JSON + CSV | 知识库以 JSON 落盘，支持 CSV 导入 |
+| 前端 | HTML + CSS + Vanilla JS | 构建中台控制台，无额外前端工程 |
+| HTTP 客户端 | httpx | 异步调用外部 LLM / Embedding 接口 |
+| 运行环境 | Python 3.10+ | 支持异步 API、类型标注与本地开发 |
 
 ---
 
@@ -112,32 +129,38 @@ flowchart LR
 reply-agent/
 ├─ app/
 │  ├─ core/
-│  │  ├─ config.py          # 环境变量、Prompt 配置、风险词与默认策略
-│  │  └─ database.py        # SQLite 初始化与表结构创建
+│  │  ├─ config.py              # 环境变量、Prompt 配置、风险词、Embedding 配置
+│  │  └─ database.py            # SQLite 初始化与表结构创建
 │  ├─ models/
-│  │  └─ schemas.py         # Pydantic 数据模型
+│  │  └─ schemas.py             # Pydantic 数据模型
 │  ├─ services/
-│  │  ├─ demo.py            # 演示数据与场景生成
-│  │  ├─ intent.py          # 意图识别
-│  │  ├─ knowledge_base.py  # 知识库导入、读取、检索
-│  │  ├─ llm_gateway.py     # OpenAI 兼容模型网关
-│  │  ├─ orchestrator.py    # 主链路编排
-│  │  ├─ quality.py         # 回复质检
-│  │  ├─ reply.py           # 回复生成
-│  │  ├─ store.py           # 会话、任务、配置读写
-│  │  └─ tagging.py         # 标签和升级逻辑
-│  └─ main.py               # FastAPI 入口
+│  │  ├─ embedding_gateway.py   # Embedding 接口封装
+│  │  ├─ intent.py              # 意图识别
+│  │  ├─ knowledge_base.py      # 知识库导入、读取、检索
+│  │  ├─ llm_gateway.py         # OpenAI 兼容模型网关
+│  │  ├─ multi_agent.py         # LangGraph Supervisor 多 Agent 流程
+│  │  ├─ orchestrator.py        # 会话主编排器
+│  │  ├─ quality.py             # 回复质检
+│  │  ├─ reply.py               # 回复生成
+│  │  ├─ store.py               # 会话、任务、配置存储
+│  │  ├─ tagging.py             # 标签和升级策略
+│  │  └─ vector_store.py        # 本地向量索引与语义检索
+│  └─ main.py                   # FastAPI 入口
 ├─ data/
-│  ├─ knowledge_base.json   # 当前知识库数据
+│  ├─ knowledge_base.json       # 当前知识库数据
+│  ├─ kb_vector_index.json      # 本地 embedding 索引文件
 │  ├─ knowledge_import_sample.csv
+│  ├─ multi_shop_knowledge_import.csv
 │  └─ real_knowledge_import.csv
 ├─ static/
-│  ├─ index.html            # 中台页面骨架
-│  ├─ styles.css            # 控制台样式
-│  └─ app.js                # 页面交互与 API 调用
-├─ .env.example             # LLM 配置示例
-├─ ARCHITECTURE.md          # 架构设计说明
+│  ├─ index.html                # 中台页面骨架
+│  ├─ styles.css                # 控制台样式
+│  └─ app.js                    # 页面交互与 API 调用
+├─ README.assets/               # README 配图
+├─ .env.example
 ├─ requirements.txt
+├─ test_follow_up_queue.py
+├─ test_multi_agent_runtime.py
 └─ README.md
 ```
 
@@ -147,71 +170,127 @@ reply-agent/
 
 ### main.py - FastAPI 入口与中台接口
 
-`app/main.py` 是整个项目的统一入口，承担三类职责：
+`app/main.py` 是系统统一入口，主要承担四类职责：
 
-- 初始化数据库与默认系统配置
-- 暴露客服处理中台相关 API
-- 直接托管静态控制台页面
+1. 初始化数据库和系统默认配置；
+2. 暴露客服处理、知识库、会话、任务、配置和 Dashboard 接口；
+3. 提供流式消息处理接口；
+4. 直接托管静态控制台页面。
 
-其中几个关键接口分别对应截图中的页面能力：
+几个关键接口分别对应页面中的主要能力：
 
+- `POST /api/channel/xiaohongshu/events`
+  处理一次完整消息事件
 - `POST /api/channel/xiaohongshu/events/stream`
-  负责会话模拟区的流式回复演示
+  用于 `LIVE CHAT DEMO` 的流式消息演示
+- `POST /internal/agent/trace-preview`
+  预览多 Agent 的完整处理链路
+- `POST /api/knowledge-base/import`
+  导入 CSV 知识库
+- `POST /api/knowledge-base/vector-index/rebuild`
+  重建本地向量索引
 - `GET /api/dashboard/metrics`
   驱动首页指标卡片
 - `GET /api/follow-up/tasks`
-  驱动待跟进队列
-- `GET /api/conversations`
-  驱动最近会话列表
+  获取待跟进任务
 - `PATCH /api/system/config`
-  保存运行策略
-- `POST /api/knowledge-base/import`
-  处理 CSV 知识库导入
+  保存系统运行策略
 
-项目首页 `/` 会直接返回 `static/index.html`，因此启动服务后即可打开一个完整的演示控制台。
+首页 `/` 会返回 `static/index.html`，并带上资源版本号参数，便于前端静态资源刷新。
 
 ---
 
 ### orchestrator.py - 会话编排主链路
 
-`app/services/orchestrator.py` 是这套 MVP 的核心调度器。
+`app/services/orchestrator.py` 是业务层主调度器。
 
-它把一次用户消息处理拆成固定步骤：
+它负责：
 
-1. 写入用户消息与会话上下文
-2. 调用 `IntentService` 做意图识别
-3. 调用 `KnowledgeBaseService` 检索知识
-4. 调用 `ReplyService` 生成回复草稿
-5. 调用 `QualityService` 进行质检
-6. 调用 `TaggingService` 生成标签并判断是否升级
-7. 根据策略决定自动发送、阻断发送或转人工跟进
-8. 把结果写回 `AgentStore`
+1. 校验当前是否具备 LLM 运行能力；
+2. 创建或恢复会话；
+3. 先落库用户消息；
+4. 调用 `MultiAgentRuntime` 执行完整 Agent 流程；
+5. 把意图、知识命中、回复、质检、标签和 follow-up 任务结果统一落库；
+6. 返回前端可直接消费的 `ProcessedEventResponse`。
 
-这让整个项目具备了明确的“可控链路”，而不是单次问答式黑盒调用。
+这一层的价值在于：把“外部 API 入口”和“内部多 Agent 细节”隔离开，对外仍然表现成一个稳定的客服中台服务。
+
+---
+
+### multi_agent.py - 多 Agent 工作流
+
+`app/services/multi_agent.py` 是当前项目最像“Agent 系统”的部分。
+
+项目内部通过 LangGraph 定义了一套 **Supervisor 驱动的多角色 Agent 流程**，包含：
+
+- `intent_agent`
+- `retrieval_agent`
+- `customer_service_agent`
+- `quality_agent`
+- `tagging_agent`
+- `escalation_agent`
+- `delivery_agent`
+
+还有一个负责统一规划与路由的：
+
+- `supervisor_agent`
+
+整体流程大致是：
+
+```text
+supervisor_agent
+  -> intent_agent
+  -> retrieval_agent
+  -> customer_service_agent
+  -> quality_agent
+  -> tagging_agent
+  -> escalation_agent
+  -> delivery_agent
+  -> end
+```
+
+每个角色都有自己的：
+
+- `role`
+- `instructions`
+- `tools`
+- `can_handoff_to`
+- 是否使用 LLM
+
+这使项目从“单次链式调用”升级成了“角色分工明确的多 Agent 工作流”。
+
+当前实现里，Supervisor 并不是完全自由推理式的动态规划器，而是一个 **确定性、可解释、便于前端展示的多 Agent 工作流控制器**。这非常适合中台和演示场景。
 
 ---
 
 ### intent.py - 意图识别服务
 
-`app/services/intent.py` 当前实现的是规则优先的轻量意图识别服务。
+`app/services/intent.py` 实现了意图识别能力。
 
-它会结合：
+当前主要基于：
 
-- 消息中的关键词
+- 关键词规则
 - 订单状态上下文
-- 问题语义特征
+- 风险词信号
+- 商品咨询相关线索
 
-输出标准化结果：
+输出结构化结果：
 
 ```json
 {
   "intent": "催发货",
-  "confidence": 0.77,
-  "signals": ["提到发货时效", "订单状态为 paid"]
+  "confidence": 0.91,
+  "signals": ["命中发货关键词", "订单已支付"],
+  "needs_human": false
 }
 ```
 
-这类结构化结果会继续驱动后续的知识检索、回复模板选择和风险升级判断。
+这个结构化结果会继续驱动：
+
+- 检索范围选择
+- 回复 Prompt 选择
+- 人工升级策略
+- 页面中的 Agent Trace 展示
 
 ---
 
@@ -219,10 +298,10 @@ reply-agent/
 
 `app/services/knowledge_base.py` 负责两件事：
 
-- 管理知识库导入、保存与预览
-- 基于当前问题进行知识检索
+1. 管理知识库数据的导入、保存、列举；
+2. 执行知识检索。
 
-当前知识条目采用扁平结构，支持字段：
+知识条目以扁平结构存储，核心字段包括：
 
 - `id`
 - `kb_type`
@@ -231,136 +310,211 @@ reply-agent/
 - `intent_scope`
 - `title`
 - `content`
+- `source_name`
+- `source_url`
+
+它支持两种检索方式：
+
+- `search_lexical()`：规则过滤 + 关键词打分
+- `search()`：关键词分数 + 向量分数 + 业务规则分数的融合召回
+
+检索前会先做业务边界过滤：
+
+- 店铺隔离
+- 意图范围过滤
+- 商品范围过滤
+
+所以即使引入向量检索，也不会绕过商家和商品边界。
 
 控制台中的 `KNOWLEDGE BASE` 区域允许直接上传 CSV 文件，后端会：
 
-1. 读取 CSV 内容
-2. 校验表头
-3. 转成内部知识条目
-4. 保存到 `data/knowledge_base.json`
-5. 立即刷新前端预览表格
+1. 校验表头；
+2. 过滤空行和重复 ID；
+3. 追加保存到 `data/knowledge_base.json`；
+4. 清理旧向量索引；
+5. 允许后续手动重建向量索引。
 
-当前检索更偏向规则过滤和关键词匹配，适合做 MVP 演示；后续可以很自然升级为 BM25、向量检索与重排。
+---
+
+### vector_store.py + embedding_gateway.py - 轻量 RAG 向量层
+
+这是项目里和 RAG 最相关的部分。
+
+#### embedding_gateway.py
+
+`app/services/embedding_gateway.py` 负责调用 OpenAI 兼容 Embeddings API，把文本转为向量。
+
+特征：
+
+- 通过 `EMBEDDING_API_KEY` 判断是否启用；
+- 支持自定义 `EMBEDDING_BASE_URL`；
+- 统一做向量归一化，便于后续相似度计算。
+
+#### vector_store.py
+
+`app/services/vector_store.py` 提供本地向量索引能力：
+
+- 把知识文档转成 embedding；
+- 存储到 `data/kb_vector_index.json`；
+- 按文档签名判断是否需要重建；
+- 在查询时对候选知识做向量相似度排序。
+
+当前 RAG 形态可以概括为：
+
+```text
+知识库文档
+  -> 文本拼接
+  -> Embedding
+  -> 本地 JSON 向量索引
+  -> 查询向量化
+  -> 候选文档相似度排序
+  -> 与关键词分数融合
+  -> 返回 Top-K 命中结果
+```
+
+它是 **轻量版 RAG**，已经具备 Retrieve + Generate 的基本链路，但还没有：
+
+- 独立向量数据库
+- chunk 切分流水线
+- rerank 模型
+- 检索评测体系
+
+所以更准确的描述是：**项目已经使用了轻量 RAG 技术，并为后续完整 RAG 升级预留了结构。**
 
 ---
 
 ### reply.py + llm_gateway.py - 回复生成与模型网关
 
-`app/services/reply.py` builds the reply prompt by intent, and `app/services/llm_gateway.py` performs the required LLM call.
+`app/services/reply.py` 根据意图选择 Prompt 模板，`app/services/llm_gateway.py` 负责实际调用外部 LLM。
 
-The project now requires LLM mode:
-
-- `llm_enabled` must be enabled in system config, and `LLM_API_KEY` must be configured locally before replies can be generated.
-
-模型请求中会拼入：
+回复生成输入会拼入：
 
 - 当前意图
 - 对应意图的回复约束
-- 最近几轮历史会话
-- 当前知识命中内容
-- 用户最新问题
+- 近几轮会话历史
+- 知识库命中内容
+- 用户最新消息
 
-因此模型并不是自由发挥，而是在较强约束下做表达增强。
+输出结构包括：
+
+- `draft_reply`
+- `prompt_template`
+- `cited_knowledge_ids`
+- `risk_notes`
+- `model_name`
+
+`LlmGateway` 使用 OpenAI 兼容的 `chat/completions` 接口，因此可以接：
+
+- OpenAI
+- 兼容 OpenAI 协议的第三方模型服务
+
+当前版本中，LLM 是必需运行组件；如果没有配置 `LLM_API_KEY`，消息处理接口会直接返回不可用错误。
 
 ---
 
 ### quality.py - 回复质检服务
 
-`app/services/quality.py` 用来判断一条回复是否可以安全发送。
+`app/services/quality.py` 负责判断一条回复是否可以安全发送。
 
 当前质检重点包括：
 
 - 是否出现承诺性表达
-- 是否在敏感意图下没有命中知识却仍然尝试强答
-- 是否存在售后、赔付、时效类越权表述
+- 敏感意图下是否缺少知识支撑
+- 售后/退换货类回复是否缺少平台审核或售后入口引导
+- 发货类回复是否出现具体到达时间承诺
 
-质检结果会输出：
+质检输出包括：
 
-- `pass`
+- `passed`
 - `risk_level`
-- `review_mode`
+- `issues`
 - `suggestion`
+- `review_mode`
 
-如果质检失败，消息不会自动发送，而是进入待跟进链路。
+这使系统具备“模型生成之后仍有规则守门”的能力。
 
 ---
 
-### tagging.py - 标签与任务升级策略
+### tagging.py - 标签与升级策略
 
-`app/services/tagging.py` 是会话“风险信号”的聚合层。
+`app/services/tagging.py` 用来汇总风险信号并决定是否升级人工。
 
-它会结合：
+它综合以下维度：
 
 - 意图识别置信度
 - 质检结果
-- 知识是否命中
-- 消息中的高风险词、情绪词
+- 知识命中数量
+- 风险关键词
+- 用户情绪关键词
 
-生成诸如下面的标签：
+可能生成的标签包括：
 
 - `低置信度识别`
 - `知识未命中`
+- `高风险会话`
 - `高风险售后`
 - `情绪激动`
+- `时效敏感`
 
-并进一步判断：
+这些标签会继续影响：
 
-- 是否需要进入待跟进队列
-- 任务优先级应为 `P1` / `P2`
-
-这正是截图中 `FOLLOW-UP QUEUE` 和 `会话侧写` 区域的来源。
+- 是否进入 follow-up 队列
+- 任务优先级 `P1 / P2 / P3`
+- 控制台中的会话高亮和过滤
 
 ---
 
 ### store.py - 会话、任务与配置存储
 
-`app/services/store.py` 是当前 MVP 最重的基础模块，负责持久化几乎所有业务状态：
+`app/services/store.py` 是系统的持久化核心，统一封装了：
 
 - 会话与消息
-- 意图识别结果
-- 知识命中记录
+- 意图结果
+- 知识命中
 - 回复记录
 - 质检结果
 - 标签
-- 待跟进任务
-- 系统运行配置
+- follow-up 任务
+- 系统配置
 
-它还提供了若干非常实用的运营能力：
+它不只是简单 CRUD，还承担了一些运维修复能力：
 
-- 自动补齐缺失的任务关联消息
-- 恢复应存在但未生成的跟进任务
+- 自动补全历史任务缺失的 `message_id`
+- 恢复丢失的 follow-up 任务
 - 清理重复任务
-- 清理开放任务
-- 删除完整会话
-- 聚合仪表盘指标
+- 清空未处理任务
+- 支持人工回复后关闭任务
+- 汇总仪表盘指标
 
-也正因为这些能力，页面才能直接支持“最近会话”“指标卡”“队列详情”“策略配置”这些中台操作。
+因此，它既是数据仓储层，也是当前 MVP 的“运营数据中心”。
 
 ---
 
 ### static/index.html + app.js - 可视化运营控制台
 
-前端不依赖 React、Vue 这类框架，而是使用原生 HTML/CSS/JavaScript 实现了一个完整的演示控制台。
+前端使用原生 HTML、CSS、JavaScript 构建。
 
-控制台包含以下几个主要区域：
+控制台主要由以下几块构成：
 
 | 区域 | 对应能力 |
 |------|----------|
-| `LIVE CHAT DEMO` | 模拟真实客户消息，走完整处理链路，并展示流式回复 |
-| `AGENT TRACE` | 展示本轮意图识别、知识命中、质检建议和最终发送结果 |
-| `KNOWLEDGE BASE` | 上传 CSV、查看知识条目 |
-| `FOLLOW-UP QUEUE` | 浏览待跟进任务，查看详情并标记已处理 |
-| `SYSTEM CONFIG` | 配置自动回复、模型开关、阈值和风险词 |
-| `CONVERSATIONS` | 查看最近会话、标签、最新回复和跟进情况 |
+| `LIVE CHAT DEMO` | 模拟客户消息，实时展示 Agent 回复 |
+| `AGENT TRACE` | 展示本轮意图识别、知识命中、回复、质检、handoff 决策 |
+| `KNOWLEDGE BASE` | CSV 导入与知识预览 |
+| `FOLLOW-UP QUEUE` | 待跟进任务查看与处理 |
+| `SYSTEM CONFIG` | 自动回复、模型配置、阈值、风险词配置 |
+| `CONVERSATIONS` | 最近会话列表、会话详情、标签和回复记录 |
 
-`static/app.js` 里几个值得关注的设计点：
+`static/app.js` 里几个值得关注的点：
 
-- 使用 `fetch` 对接全部 API
-- 使用 SSE 风格流式读取 `/api/channel/xiaohongshu/events/stream`
-- 在浏览器中维护会话与任务的轻量状态
-- 支持一键灌入演示数据和典型场景
+- 使用 `fetch` 对接全部 API；
+- 使用 SSE 风格读取 `/api/channel/xiaohongshu/events/stream`；
+- 维护页面级状态，如当前会话、最近仿真结果、聊天消息列表；
+- 支持一键注入演示数据；
+- 支持上传知识库 CSV；
+- 支持保存运行策略。
 
-如果你要继续扩展前端，这一层就是最直接的切入点。
+这一层让项目不只是“后端服务”，而是一个能完整展示 Agent 中台价值的可交互演示系统。
 
 ---
 
@@ -375,31 +529,45 @@ POST /api/channel/xiaohongshu/events/stream
     v
 ConversationOrchestrator
     |
-    +--> IntentService
-    |      识别意图 + 置信度 + 触发信号
+    v
+MultiAgentRuntime / LangGraphMultiAgentSystem
     |
-    +--> KnowledgeBaseService
-    |      检索 FAQ / 物流 / 售后知识
+    +--> supervisor_agent
+    |      规划角色执行顺序，生成 agent_plan
     |
-    +--> ReplyService
-    |      模板生成 or LLM 生成回复草稿
+    +--> intent_agent
+    |      识别意图、置信度和人工介入信号
     |
-    +--> QualityService
-    |      质检通过 / 拦截 / 给出建议
+    +--> retrieval_agent
+    |      关键词检索 + 向量检索融合召回知识
     |
-    +--> TaggingService
-    |      打标签 + 判断是否进入跟进队列
+    +--> customer_service_agent
+    |      基于知识和上下文生成客服回复
     |
-    +--> AgentStore
-           写入会话、消息、回复、质检、任务、配置
+    +--> quality_agent
+    |      做承诺风险、知识缺失、政策边界检查
+    |
+    +--> tagging_agent
+    |      生成运营标签
+    |
+    +--> escalation_agent
+    |      决定自动回复还是人工跟进
+    |
+    +--> delivery_agent
+           输出最终回复、状态和 follow-up 元数据
     |
     v
-页面实时展示：
+AgentStore
+    |
+    +--> 写入 conversations / messages / intents / hits / replies / qc / tags / tasks
+    |
+    v
+前端控制台实时展示：
 - 聊天气泡
 - Agent Trace
 - 最近会话
-- 跟进队列
-- 指标卡片
+- Follow-up 队列
+- Dashboard 指标
 ```
 
 ---
@@ -408,11 +576,13 @@ ConversationOrchestrator
 
 | 模式 | 应用位置 | 说明 |
 |------|---------|------|
-| 门面模式 | `ConversationOrchestrator` | 对外暴露统一处理入口，隐藏内部多服务编排细节 |
-| 策略模式 | `config.py` 中的意图 Prompt 与风险规则 | 不同意图走不同回复约束与风控逻辑 |
-| 仓储模式 | `AgentStore` | 统一封装 SQLite 数据访问与聚合查询 |
-| 管道式处理 | 消息处理主链路 | 识别、检索、生成、质检、打标按顺序推进 |
-| LLM required | `ReplyService` + `LlmGateway` | Message processing is unavailable without `LLM_API_KEY` |
+| 门面模式 | `ConversationOrchestrator` | 对外暴露统一处理入口，隐藏内部多 Agent 流程细节 |
+| Supervisor 模式 | `LangGraphMultiAgentSystem` | 由 `supervisor_agent` 协调多个角色 Agent 执行顺序 |
+| 策略模式 | `config.py` 中 Prompt 与质检配置 | 不同意图使用不同回复策略与风控约束 |
+| 仓储模式 | `AgentStore` | 统一封装 SQLite 数据读写和聚合查询 |
+| 管道式处理 | 客服主链路 | 识别、检索、生成、质检、升级按顺序推进 |
+| 缓存模式 | `load_knowledge_base()` | 知识库内容本地缓存，减少重复读取 |
+| 轻量 RAG 融合模式 | `KnowledgeBaseService.search()` | 关键词分数、向量分数和业务规则分数融合召回 |
 
 ---
 
@@ -426,19 +596,23 @@ pip install -r requirements.txt
 
 ### 2. 配置环境变量
 
-参考 [.env.example](D:/study/agent/codex/reply-agent/.env.example) 在项目根目录创建 `.env`：
+参考 [.env.example](/D:/study/agent/codex/reply-agent/.env.example) 在项目根目录创建 `.env`：
 
 ```env
 LLM_API_KEY=
 LLM_BASE_URL=https://api.openai.com/v1
 LLM_MODEL=gpt-4.1-mini
+
+EMBEDDING_API_KEY=
+EMBEDDING_BASE_URL=https://api.openai.com/v1
+EMBEDDING_MODEL=text-embedding-3-small
 ```
 
 说明：
 
-- `LLM_API_KEY` is required; without it, message processing and Agent Trace APIs return unavailable
-- 如果你接的是兼容 OpenAI Chat Completions 的第三方模型，也可以改 `LLM_BASE_URL`
-- 模型名会在页面的 `SYSTEM CONFIG` 中继续可调
+- `LLM_API_KEY` 必填；否则客服消息处理和 Agent Trace 无法正常运行。
+- `EMBEDDING_API_KEY` 可选；不配置时项目仍可运行，但只使用关键词检索，不启用向量召回。
+- 如果你接的是兼容 OpenAI 协议的第三方模型服务，也可以修改 `LLM_BASE_URL` 和 `EMBEDDING_BASE_URL`。
 
 ### 3. 启动服务
 
@@ -454,12 +628,12 @@ python -m uvicorn app.main:app --reload
 
 ### 4. 推荐演示顺序
 
-1. 打开首页，先点击“重置并灌入演示数据”
-2. 在 `LIVE CHAT DEMO` 中发送一条模拟客户消息
-3. 观察右侧 `AGENT TRACE` 的识别、回复和质检结果
-4. 到 `FOLLOW-UP QUEUE` 看高风险任务是否入队
-5. 在 `SYSTEM CONFIG` 中切换自动回复或模型开关
-6. 用 `KNOWLEDGE BASE` 上传 CSV 测试知识命中变化
+1. 打开首页，先查看 Dashboard、知识库和最近会话。
+2. 在 `LIVE CHAT DEMO` 中输入一条售前、发货或售后问题。
+3. 观察右侧 `AGENT TRACE` 中的识别、检索、回复和 handoff 决策。
+4. 到 `FOLLOW-UP QUEUE` 查看高风险任务是否入队。
+5. 到 `SYSTEM CONFIG` 中调整自动回复开关或阈值。
+6. 用 `KNOWLEDGE BASE` 上传 CSV，再重建向量索引验证召回变化。
 
 ---
 
@@ -468,22 +642,30 @@ python -m uvicorn app.main:app --reload
 ### 对外演示接口
 
 - `GET /`
-  返回可视化中台首页
+  返回中台首页
 - `GET /health`
-  服务健康检查
+  健康检查
 - `POST /api/channel/xiaohongshu/events`
   处理一次完整消息事件
 - `POST /api/channel/xiaohongshu/events/stream`
-  流式返回模拟消息处理过程
-- `POST /api/demo/seed`
-  重置并注入演示数据
-- `POST /api/demo/run`
-  一键生成典型客服场景
+  流式返回消息处理过程
 
-### 中台数据接口
+### Agent 预览接口
 
-- `GET /api/dashboard/metrics`
-  获取仪表盘指标
+- `POST /internal/agent/trace-preview`
+  不落库预览一次完整多 Agent 处理过程，返回 `agent_plan` 和 `agent_trace`
+
+### 知识库接口
+
+- `GET /api/knowledge-base`
+  列出当前知识条目
+- `POST /api/knowledge-base/import`
+  导入 CSV 知识库
+- `POST /api/knowledge-base/vector-index/rebuild`
+  重建向量索引
+
+### 会话与任务接口
+
 - `GET /api/conversations`
   获取最近会话列表
 - `GET /api/conversations/{conversation_id}`
@@ -491,52 +673,63 @@ python -m uvicorn app.main:app --reload
 - `DELETE /api/conversations/{conversation_id}`
   删除会话及关联记录
 - `GET /api/follow-up/tasks`
-  获取待跟进队列
+  获取待跟进任务列表
 - `GET /api/follow-up/tasks/{task_id}`
-  获取待跟进任务详情
+  获取任务详情
 - `POST /api/follow-up/tasks/{task_id}/claim`
   领取任务
 - `POST /api/follow-up/tasks/{task_id}/resolve`
   标记任务已处理
 - `POST /api/follow-up/tasks/{task_id}/manual-reply`
-  通过人工回复完成任务
+  通过人工回复处理任务
+- `POST /api/follow-up/tasks/cleanup`
+  清理重复任务
+- `POST /api/follow-up/tasks/clear-open`
+  清空未处理任务
 
-### 内部能力接口
+### 配置与指标接口
 
-- `POST /internal/intent/recognize`
-  意图识别
-- `POST /internal/kb/search`
-  知识检索
-- `POST /internal/reply/generate`
-  回复生成
-- `POST /internal/reply/check`
-  回复质检
-
-### 知识与配置接口
-
-- `GET /api/knowledge-base`
-  列出当前知识条目
-- `POST /api/knowledge-base/import`
-  导入 CSV 知识库
+- `GET /api/dashboard/metrics`
+  获取仪表盘指标
 - `GET /api/system/config`
   获取系统配置
 - `PATCH /api/system/config`
   更新系统配置
 
+### 内部能力接口
+
+- `POST /internal/intent/recognize`
+  单独调用意图识别
+- `POST /internal/kb/search`
+  单独调用知识检索
+- `POST /internal/reply/generate`
+  单独调用回复生成
+- `POST /internal/reply/check`
+  单独调用回复质检
+
 ---
 
 ## 当前实现说明
 
-- 这是一个强调可运行、可演示、可观察的 MVP，适合本地展示客服 Agent 中台的完整处理闭环。
-- 当前意图识别、知识检索和质检以规则与轻量逻辑为主，优先保证链路清晰和风险可控。
-- LLM access is required; without an API Key, the system cannot process customer messages normally.
-- 前端控制台已经具备较完整的运营视角，不只是“测试接口页”，而是能真实演示会话、风险和任务流转。
-- 存储层采用 SQLite，适合单机验证；如果进入多人协作或生产场景，建议拆分数据库、检索服务和配置中心。
-- 页面中对话模拟使用流式返回，能更直观看到 Agent 回复过程，但底层仍然是一次完整的后端编排执行。
+- 这是一个强调“可运行、可演示、可观察”的 Agent 中台 MVP。
+- 项目已经具备 **多 Agent 工作流**，不再只是单一链式调用。
+- 项目已经使用 **轻量 RAG**：
+  - 支持知识检索先行；
+  - 支持 embedding 向量召回；
+  - 支持关键词与语义分数融合。
+- 当前回复生成依赖外部 LLM 服务，未提供完全离线回复模式。
+- 存储层采用 SQLite，适合单机演示和本地验证；若要进入生产，建议拆分数据库、检索服务和配置中心。
+- 向量能力当前以本地 JSON 索引实现，适合 MVP；如果继续演进，可升级到 pgvector、Milvus、Elasticsearch 或其他向量数据库。
+- 当前质检层仍以规则为主，后续可以继续补充：
+  - LLM 评审器
+  - rerank
+  - 检索效果评测
+  - Prompt A/B 测试
+  - 多店铺品牌语气配置
 
 如果后续继续演进，比较自然的方向是：
 
-- 接入更强的意图分类模型
-- 把知识检索升级为 BM25 + 向量召回 + 重排
-- 为不同店铺做独立配置与品牌语气管理
-- 增加人工处理记录回流，用于优化规则、Prompt 和知识库
+- 引入更强的意图分类模型；
+- 把轻量 RAG 升级为完整的向量检索 + rerank 体系；
+- 把多 Agent 的决策路径做成更强的可视化链路；
+- 增加人工处理结果回流，用于优化 Prompt、检索和质检规则。
